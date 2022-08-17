@@ -52,10 +52,12 @@ import time
 ''' 
     ### VERSION DOC ##########################################################
 '''
+time_format = "%Y-%m-%d  %H:%M:%S"
+baud = 115200
 
 root = tk.Tk()
 root.wm_title("ARCS - Annin Robotics Control Software Ver 1.0")
-root.iconbitmap(r'AR.ico')
+root.iconbitmap('./img/AR.ico')
 root.resizable(0, 0)
 
 app_width = 1440
@@ -109,10 +111,9 @@ nb.add(tab10, text='Testing')
 
 nb.pack(pady=5, padx=5)
 
+
 # COMMUNICATION_DEFS
-
-
-def set_com() -> None:
+def set_teensy_port() -> None:
     try:
         global ser
         global J1StepCur
@@ -122,26 +123,31 @@ def set_com() -> None:
         global J5StepCur
         global J6StepCur
         port = "COM" + comPortEntryField.get()
-        baud = 115200
         ser = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg='cornflowerblue')
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        current_time = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
+        current_time = datetime.datetime.now().strftime(time_format)
         tab6.ElogView.insert(tk.END, current_time + " - COMMUNICATIONS STARTED WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+
+        with open("ErrorLog", "wb") as f:
+            pickle.dump(value, f)
+
         savePosData()
-    except:
+    except serial.SerialException as e:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
-        current_time = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
+        current_time = datetime.datetime.now().strftime(time_format)
         tab6.ElogView.insert(tk.END, current_time + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+
+        with open("ErrorLog", "wb") as f:
+            pickle.dump(value, f)
+
         savePosData()
 
 
-def setCom2():
+def set_arduino_port():
     try:
         global ser2
         global J1StepCur
@@ -151,28 +157,31 @@ def setCom2():
         global J5StepCur
         global J6StepCur
         port = "COM" + com2PortEntryField.get()
-        baud = 115200
         ser2 = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - COMMUNICATIONS STARTED WITH MEGA 2560")
+        current_time = datetime.datetime.now().strftime(time_format)
+        tab6.ElogView.insert(tk.END, current_time + " - COMMUNICATIONS STARTED WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+
+        with open("ErrorLog", "wb") as f:
+            pickle.dump(value, f)
+
         savePosData()
-    except:
+    except serial.SerialException:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
+        current_time = datetime.datetime.now().strftime(time_format)
+        tab6.ElogView.insert(tk.END, current_time + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+
+        with open("ErrorLog", "wb") as f:
+            pickle.dump(value, f)
+
         savePosData()
 
 
-###############################################################################################################################################################
 ### EXECUTION DEFS ######################################################################################################################### EXECUTION DEFS ###
-###############################################################################################################################################################
 
 def runProg():
     def threadProg():
@@ -312,7 +321,7 @@ def executeRow():
         index = 0
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
-        ##Return Program##
+    ##Return Program##
     if (cmdType == "Return"):
         lastRow = tab1.lastRow
         lastProg = tab1.lastProg
@@ -323,7 +332,7 @@ def executeRow():
         index = 0
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(lastRow)
-        ##Servo Command##
+    ##Servo Command##
     if (cmdType == "Servo "):
         servoIndex = command.find("number ")
         posIndex = command.find("position: ")
@@ -334,7 +343,7 @@ def executeRow():
         ser2.flushInput()
         time.sleep(.2)
         ser2.read()
-        ##If Input On Jump to Tab##
+    ##If Input On Jump to Tab##
     if (cmdType == "If On "):
         inputIndex = command.find("Input-")
         tabIndex = command.find("Tab-")
@@ -373,7 +382,7 @@ def executeRow():
         index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
-        ##Set Output ON Command##
+    ##Set Output ON Command##
     if (cmdType == "Out On"):
         outputIndex = command.find("Out On = ")
         outputNum = str(command[outputIndex + 9:])
@@ -382,7 +391,7 @@ def executeRow():
         ser2.flushInput()
         time.sleep(.2)
         ser2.read()
-        ##Set Output OFF Command##
+    ##Set Output OFF Command##
     if (cmdType == "Out Of"):
         outputIndex = command.find("Out Off = ")
         outputNum = str(command[outputIndex + 10:])
@@ -391,7 +400,7 @@ def executeRow():
         ser2.flushInput()
         time.sleep(.2)
         ser2.read()
-        ##Wait Input ON Command##
+    ##Wait Input ON Command##
     if (cmdType == "Wait I"):
         inputIndex = command.find("Wait Input On = ")
         inputNum = str(command[inputIndex + 16:])
@@ -400,7 +409,7 @@ def executeRow():
         ser2.flushInput()
         time.sleep(.2)
         ser2.read()
-        ##Wait Input OFF Command##
+    ##Wait Input OFF Command##
     if (cmdType == "Wait O"):
         inputIndex = command.find("Wait Off Input = ")
         inputNum = str(command[inputIndex + 17:])
@@ -409,7 +418,7 @@ def executeRow():
         ser2.flushInput()
         time.sleep(.2)
         ser2.read()
-        ##Wait Time Command##
+    ##Wait Time Command##
     if (cmdType == "Wait T"):
         timeIndex = command.find("Wait Time = ")
         timeSeconds = str(command[timeIndex + 12:])
@@ -418,7 +427,7 @@ def executeRow():
         ser.flushInput()
         time.sleep(.2)
         ser.read()
-        ##Set Register##
+    ##Set Register##
     if (cmdType == "Regist"):
         regNumIndex = command.find("Register ")
         regEqIndex = command.find(" = ")
@@ -2757,9 +2766,7 @@ def TRzjogPos():
             Track, Code)
 
 
-##############################################################################################################################################################
-### TEACH DEFS ################################################################################################################################ TEACH DEFS ###
-##############################################################################################################################################################
+# TEACH_DEFS
 
 def teachInsertBelSelected():
     global XcurPos
@@ -2956,17 +2963,16 @@ def teachFineCal():
     pickle.dump(value, open("ErrorLog", "wb"))
 
 
-##############################################################################################################################################################
-### PROGRAM FUNCTION DEFS ########################################################################################################## PROGRAM FUNCTION DEFS ###
-##############################################################################################################################################################
+# PROGRAM_FUNCTION_DEFS
 
-def deleteitem():
+def delete_item():
     selRow = tab1.progView.curselection()[0]
     selection = tab1.progView.curselection()
     tab1.progView.delete(selection[0])
     tab1.progView.select_set(selRow)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), 'wb') as program_file:
+        pickle.dump(value, program_file)
 
 
 def manInsItem():
@@ -5870,6 +5876,7 @@ def viscalc(x, y):
     Ypos = float(VisOrigYmm + YMpos)
     return (Xpos, Ypos)
 
+
 # TAB 1
 # LABELS
 
@@ -6141,30 +6148,40 @@ callBut.place(x=540, y=560)
 returnBut = tk.Button(tab1, borderwidth=3, text="Return", height=1, width=20, command=insertReturn)
 returnBut.place(x=540, y=600)
 
-comPortBut = tk.Button(tab1, borderwidth=3, text="Set Com", font=("Arial", 7), height=0, width=7, command=set_com)
+comPortBut = tk.Button(tab1,
+                       borderwidth=3,
+                       text="Set Com",
+                       font=("Arial", 7),
+                       height=0, width=7,
+                       command=set_teensy_port)
 comPortBut.place(x=473, y=35)
 
-comPortBut2 = tk.Button(tab1, borderwidth=3, text="Set Com", font=("Arial", 7), height=0, width=7, command=setCom2)
+comPortBut2 = tk.Button(tab1,
+                        borderwidth=3,
+                        text="Set Com",
+                        font=("Arial", 7),
+                        height=0, width=7,
+                        command=set_arduino_port)
 comPortBut2.place(x=473, y=65)
 
 ProgBut = tk.Button(tab1, borderwidth=3, text="Load Program", height=0, width=12, command=loadProg)
 ProgBut.place(x=202, y=42)
 
-deleteBut = tk.Button(tab1, borderwidth=3, text="Delete", height=1, width=20, command=deleteitem)
+deleteBut = tk.Button(tab1, borderwidth=3, text="Delete", height=1, width=20, command=delete_item)
 deleteBut.place(x=540, y=520)
 
 runProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=runProg)
-playPhoto = tk.PhotoImage(file="play-icon.gif")
+playPhoto = tk.PhotoImage(file="img/play-icon.gif")
 runProgBut.config(image=playPhoto, width="60", height="60")
 runProgBut.place(x=20, y=80)
 
 xboxBut = tk.Button(tab1, borderwidth=3, height=43, width=60, command=xbox)
-xboxPhoto = tk.PhotoImage(file="xbox.gif")
+xboxPhoto = tk.PhotoImage(file="img/xbox.gif")
 xboxBut.config(image=xboxPhoto, width="60", height="43")
 xboxBut.place(x=1330, y=140)
 
 stopProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stopProg)
-stopPhoto = tk.PhotoImage(file="stop-icon.gif")
+stopPhoto = tk.PhotoImage(file="img/stop-icon.gif")
 stopProgBut.config(image=stopPhoto, width="60", height="60")
 stopProgBut.place(x=200, y=80)
 
@@ -7686,10 +7703,7 @@ VisXpixfindEntryField.place(x=720, y=100)
 VisYpixfindEntryField = tk.Entry(tab5, width=5)
 VisYpixfindEntryField.place(x=720, y=130)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 6
+# TAB 6
 
 Elogframe = tk.Frame(tab6)
 Elogframe.place(x=40, y=15)
@@ -7717,10 +7731,7 @@ def clearLog():
 clearLogBut = tk.Button(tab6, borderwidth=3, text="Clear Log", height=1, width=26, command=clearLog)
 clearLogBut.place(x=1000, y=630)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 7
+# TAB 7
 
 link = tk.Label(tab7, font='12', text="https://www.anninrobotics.com/tutorials", fg="blue", cursor="hand2")
 link.bind("<Button-1>", lambda event: webbrowser.open(link.cget("text")))
@@ -7732,7 +7743,7 @@ def callback():
 
 
 donateBut = tk.Button(tab7, height=30, width=80, command=callback)
-donatePhoto = tk.PhotoImage(file="pp.gif")
+donatePhoto = tk.PhotoImage(file="img/pp.gif")
 donateBut.config(image=donatePhoto, width="80", height="30")
 donateBut.place(x=1250, y=2)
 
@@ -7778,9 +7789,7 @@ testSendEntryField.place(x=10, y=40)
 testRecEntryField = tk.Entry(tab10, width=222)
 testRecEntryField.place(x=10, y=90)
 
-##############################################################################################################################################################
-### OPEN CAL FILE AND LOAD LIST ##############################################################################################################################
-##############################################################################################################################################################
+# OPEN CAL FILE AND LOAD LIST
 
 calibration = tk.Listbox(tab2, width=20, height=60)
 # calibration.place(x=160,y=170)
@@ -8135,8 +8144,8 @@ if (J6OpenLoopVal == 1):
 SaveAndApplyCalibration()
 DisplaySteps()
 CalcFwdKin()
-set_com()
-setCom2()
+set_teensy_port()
+set_arduino_port()
 
 loadProg()
 msg = "ANNIN ROBOTICS SOFTWARE AND MODELS ARE FREE:\n\
@@ -8156,7 +8165,7 @@ AR2 ROBOT DESIGN FOR PROFIT.\n\
 \n\
 Copyright (c) 2019, Chris Annin"
 
-messagebox.showwarning("ARCS License / Copyright notice", msg)
+# messagebox.showwarning("ARCS License / Copyright notice", msg)
 xboxUse = 0
 
 global blockEncPosCal
