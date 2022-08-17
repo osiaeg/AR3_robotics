@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, IntVar
+from tkinter import messagebox, IntVar, Scrollbar
 from tkinter import ttk
 
 import numpy as np
@@ -52,7 +52,6 @@ import time
 ''' 
     ### VERSION DOC ##########################################################
 '''
-time_format = "%Y-%m-%d  %H:%M:%S"
 baud = 115200
 
 root = tk.Tk()
@@ -112,10 +111,15 @@ nb.add(tab10, text='Testing')
 nb.pack(pady=5, padx=5)
 
 
+def get_current_time() -> str:
+    time_format = "%Y-%m-%d  %H:%M:%S"
+    return datetime.datetime.now().strftime(time_format)
+
+
 # COMMUNICATION_DEFS
 def set_teensy_port() -> None:
     try:
-        global ser
+        global serial_teensy
         global J1StepCur
         global J2StepCur
         global J3StepCur
@@ -123,33 +127,31 @@ def set_teensy_port() -> None:
         global J5StepCur
         global J6StepCur
         port = "COM" + comPortEntryField.get()
-        ser = serial.Serial(port, baud)
+        serial_teensy = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg='cornflowerblue')
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        current_time = datetime.datetime.now().strftime(time_format)
-        tab6.ElogView.insert(tk.END, current_time + " - COMMUNICATIONS STARTED WITH TEENSY 3.5")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
 
         with open("ErrorLog", "wb") as f:
             pickle.dump(value, f)
 
-        savePosData()
+        save_position_data()
     except serial.SerialException as e:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
-        current_time = datetime.datetime.now().strftime(time_format)
-        tab6.ElogView.insert(tk.END, current_time + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
 
         with open("ErrorLog", "wb") as f:
             pickle.dump(value, f)
 
-        savePosData()
+        save_position_data()
 
 
 def set_arduino_port():
     try:
-        global ser2
+        global serial_arduino
         global J1StepCur
         global J2StepCur
         global J3StepCur
@@ -157,38 +159,36 @@ def set_arduino_port():
         global J5StepCur
         global J6StepCur
         port = "COM" + com2PortEntryField.get()
-        ser2 = serial.Serial(port, baud)
+        serial_arduino = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        current_time = datetime.datetime.now().strftime(time_format)
-        tab6.ElogView.insert(tk.END, current_time + " - COMMUNICATIONS STARTED WITH MEGA 2560")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
 
         with open("ErrorLog", "wb") as f:
             pickle.dump(value, f)
 
-        savePosData()
+        save_position_data()
     except serial.SerialException:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
-        current_time = datetime.datetime.now().strftime(time_format)
-        tab6.ElogView.insert(tk.END, current_time + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
 
         with open("ErrorLog", "wb") as f:
             pickle.dump(value, f)
 
-        savePosData()
+        save_position_data()
 
 
 ### EXECUTION DEFS ######################################################################################################################### EXECUTION DEFS ###
 
-def runProg():
-    def threadProg():
+def run_program():
+    def program_thread():
         global rowinproc
         try:
             curRow = tab1.progView.curselection()[0]
-            if (curRow == 0):
+            if curRow == 0:
                 curRow = 1
         except:
             curRow = 1
@@ -196,12 +196,12 @@ def runProg():
             tab1.progView.select_set(curRow)
         tab1.runTrue = 1
         while tab1.runTrue == 1:
-            if (tab1.runTrue == 0):
+            if tab1.runTrue == 0:
                 runStatusLab.config(text='PROGRAM STOPPED', bg="red")
             else:
                 runStatusLab.config(text='PROGRAM RUNNING', bg="green")
             rowinproc = 1
-            executeRow()
+            exec_row()
             time.sleep(.02)
             selRow = tab1.progView.curselection()[0]
             last = tab1.progView.index('end')
@@ -225,12 +225,12 @@ def runProg():
                 tab1.runTrue = 0
                 runStatusLab.config(text='PROGRAM STOPPED', bg="red")
 
-    t = threading.Thread(target=threadProg)
+    t = threading.Thread(target=program_thread)
     t.start()
 
 
-def stepFwd():
-    executeRow()
+def step_forward():
+    exec_row()
     selRow = tab1.progView.curselection()[0]
     last = tab1.progView.index('end')
     for row in range(0, selRow):
@@ -251,8 +251,8 @@ def stepFwd():
         curRowEntryField.insert(0, "---")
 
 
-def stepRev():
-    executeRow()
+def step_back():
+    exec_row()
     selRow = tab1.progView.curselection()[0]
     last = tab1.progView.index('end')
     for row in range(0, selRow):
@@ -273,16 +273,21 @@ def stepRev():
         curRowEntryField.insert(0, "---")
 
 
-def stopProg():
+def stop_program():
     lastProg = ""
     tab1.runTrue = 0
-    if (tab1.runTrue == 0):
+    if tab1.runTrue == 0:
         runStatusLab.config(text='PROGRAM STOPPED', bg="red")
     else:
         runStatusLab.config(text='PROGRAM RUNNING', bg="green")
 
 
-def executeRow():
+def exec_row():
+    """
+    Здесь происходит обработка команд, которые сгенерировались
+    при помощи кнопок в GUI
+    :return:
+    """
     global J1AngCur
     global J2AngCur
     global J3AngCur
@@ -297,7 +302,7 @@ def executeRow():
     global J6StepCur
     global calStat
     global rowinproc
-    global LineDist
+    global linear_distance
     global Xv
     global Yv
     global Zv
@@ -308,137 +313,148 @@ def executeRow():
     data = list(map(int, tab1.progView.curselection()))
     command = tab1.progView.get(data[0])
     cmdType = command[:6]
+
     ##Call Program##
-    if (cmdType == "Call P"):
+    if cmdType == "Call P":
         tab1.lastRow = tab1.progView.curselection()[0]
         tab1.lastProg = ProgEntryField.get()
         programIndex = command.find("Program -")
         progNum = str(command[programIndex + 10:])
         ProgEntryField.delete(0, 'end')
         ProgEntryField.insert(0, progNum)
-        loadProg()
+        load_program()
         time.sleep(.4)
         index = 0
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
+
     ##Return Program##
-    if (cmdType == "Return"):
+    if cmdType == "Return":
         lastRow = tab1.lastRow
         lastProg = tab1.lastProg
         ProgEntryField.delete(0, 'end')
         ProgEntryField.insert(0, lastProg)
-        loadProg()
+        load_program()
         time.sleep(.4)
         index = 0
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(lastRow)
+
     ##Servo Command##
-    if (cmdType == "Servo "):
+    if cmdType == "Servo ":
         servoIndex = command.find("number ")
         posIndex = command.find("position: ")
         servoNum = str(command[servoIndex + 7:posIndex - 4])
         servoPos = str(command[posIndex + 10:])
         command = "SV" + servoNum + "P" + servoPos + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        ser2.read()
+        serial_arduino.read()
+
     ##If Input On Jump to Tab##
-    if (cmdType == "If On "):
+    if cmdType == "If On ":
         inputIndex = command.find("Input-")
         tabIndex = command.find("Tab-")
         inputNum = str(command[inputIndex + 6:tabIndex - 9])
         tabNum = str(command[tabIndex + 4:])
         command = "JFX" + inputNum + "T" + tabNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        value = ser2.readline()
-        if (value == b'T'):
+        value = serial_arduino.readline()
+        if value == b'T':
             index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
             index = index - 1
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
+
     ##If Input Off Jump to Tab##
-    if (cmdType == "If Off"):
+    if cmdType == "If Off":
         inputIndex = command.find("Input-")
         tabIndex = command.find("Tab-")
         inputNum = str(command[inputIndex + 6:tabIndex - 9])
         tabNum = str(command[tabIndex + 4:])
         command = "JFX" + inputNum + "T" + tabNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        value = ser2.readline()
-        if (value == b'F'):
+        value = serial_arduino.readline()
+        if value == b'F':
             index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
             index = index - 1
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
+
     ##Jump to Row##
-    if (cmdType == "Jump T"):
+    if cmdType == "Jump T":
         tabIndex = command.find("Tab-")
         tabNum = str(command[tabIndex + 4:])
         index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
+
     ##Set Output ON Command##
-    if (cmdType == "Out On"):
+    if cmdType == "Out On":
         outputIndex = command.find("Out On = ")
         outputNum = str(command[outputIndex + 9:])
         command = "ONX" + outputNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        ser2.read()
+        serial_arduino.read()
+
     ##Set Output OFF Command##
-    if (cmdType == "Out Of"):
+    if cmdType == "Out Of":
         outputIndex = command.find("Out Off = ")
         outputNum = str(command[outputIndex + 10:])
         command = "OFX" + outputNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        ser2.read()
+        serial_arduino.read()
+
     ##Wait Input ON Command##
-    if (cmdType == "Wait I"):
+    if cmdType == "Wait I":
         inputIndex = command.find("Wait Input On = ")
         inputNum = str(command[inputIndex + 16:])
         command = "WIN" + inputNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        ser2.read()
+        serial_arduino.read()
+
     ##Wait Input OFF Command##
-    if (cmdType == "Wait O"):
+    if cmdType == "Wait O":
         inputIndex = command.find("Wait Off Input = ")
         inputNum = str(command[inputIndex + 17:])
         command = "WON" + inputNum + "\n"
-        ser2.write(command.encode())
-        ser2.flushInput()
+        serial_arduino.write(command.encode())
+        serial_arduino.flushInput()
         time.sleep(.2)
-        ser2.read()
+        serial_arduino.read()
+
     ##Wait Time Command##
-    if (cmdType == "Wait T"):
+    if cmdType == "Wait T":
         timeIndex = command.find("Wait Time = ")
         timeSeconds = str(command[timeIndex + 12:])
         command = "WTS" + timeSeconds + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
-        ser.read()
+        serial_teensy.read()
     ##Set Register##
-    if (cmdType == "Regist"):
+    if cmdType == "Regist":
         regNumIndex = command.find("Register ")
         regEqIndex = command.find(" = ")
         regNumVal = str(command[regNumIndex + 9:regEqIndex])
         regEntry = "R" + regNumVal + "EntryField"
         testOper = str(command[regEqIndex + 3:regEqIndex + 5])
-        if (testOper == "++"):
+        if testOper == "++":
             regCEqVal = str(command[regEqIndex + 5:])
             curRegVal = eval(regEntry).get()
             regEqVal = str(int(regCEqVal) + int(curRegVal))
-        elif (testOper == "--"):
+        elif testOper == "--":
             regCEqVal = str(command[regEqIndex + 5:])
             curRegVal = eval(regEntry).get()
             regEqVal = str(int(curRegVal) - int(regCEqVal))
@@ -447,7 +463,7 @@ def executeRow():
         eval(regEntry).delete(0, 'end')
         eval(regEntry).insert(0, regEqVal)
     ##Set Stor Position##
-    if (cmdType == "Store "):
+    if cmdType == "Store ":
         regNumIndex = command.find("Store Position ")
         regElIndex = command.find("Element")
         regEqIndex = command.find(" = ")
@@ -455,11 +471,11 @@ def executeRow():
         regNumEl = str(command[regElIndex + 8:regEqIndex])
         regEntry = "SP_" + regNumVal + "_E" + regNumEl + "_EntryField"
         testOper = str(command[regEqIndex + 3:regEqIndex + 5])
-        if (testOper == "++"):
+        if testOper == "++":
             regCEqVal = str(command[regEqIndex + 4:])
             curRegVal = eval(regEntry).get()
             regEqVal = str(float(regCEqVal) + float(curRegVal))
-        elif (testOper == "--"):
+        elif testOper == "--":
             regCEqVal = str(command[regEqIndex + 5:])
             curRegVal = eval(regEntry).get()
             regEqVal = str(float(curRegVal) - float(regCEqVal))
@@ -468,10 +484,10 @@ def executeRow():
         eval(regEntry).delete(0, 'end')
         eval(regEntry).insert(0, regEqVal)
     ## Get Vision ##
-    if (cmdType == "Get Vi"):
+    if cmdType == "Get Vi":
         testvis()
     ##If Register Jump to Row##
-    if (cmdType == "If Reg"):
+    if cmdType == "If Reg":
         regIndex = command.find("If Register ")
         regEqIndex = command.find(" = ")
         regJmpIndex = command.find(" Jump to Tab ")
@@ -480,17 +496,17 @@ def executeRow():
         tabNum = str(command[regJmpIndex + 13:])
         regEntry = "R" + regNum + "EntryField"
         curRegVal = eval(regEntry).get()
-        if (curRegVal == regEq):
+        if curRegVal == regEq:
             index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
             ##Calibrate Command##
-    if (cmdType == "Calibr"):
+    if cmdType == "Calibr":
         calRobotAll()
-        if (calStat == 0):
-            stopProg()
+        if calStat == 0:
+            stop_program()
     ##Move J Command##
-    if (cmdType == "Move J"):
+    if cmdType == "Move J":
         J1newIndex = command.find("X) ")
         J2newIndex = command.find("Y) ")
         J3newIndex = command.find("Z) ")
@@ -527,7 +543,7 @@ def executeRow():
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
     ##Offs J Command##
-    if (cmdType == "OFFS J"):
+    if cmdType == "OFFS J":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] [")
         J1newIndex = command.find("X) ")
@@ -573,7 +589,7 @@ def executeRow():
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
         ##Move SP Command##
-    if (cmdType == "Move S"):
+    if cmdType == "Move S":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] [")
         TRnewIndex = command.find("T) ")
@@ -607,7 +623,7 @@ def executeRow():
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
     ##OFFS SP Command##
-    if (cmdType == "OFFS S"):
+    if cmdType == "OFFS S":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] offs")
         SP2newInex = command.find("[*SP:")
@@ -644,7 +660,7 @@ def executeRow():
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
     ##Move L Command##
-    if (cmdType == "Move L"):
+    if cmdType == "Move L":
         blockEncPosCal = 1
         J1newIndex = command.find("X) ")
         J2newIndex = command.find("Y) ")
@@ -678,7 +694,7 @@ def executeRow():
         TCRx = 0
         TCRy = 0
         TCRz = 0
-        CalcLinDist(CX, CY, CZ)
+        calculate_linear_distance(CX, CY, CZ)
         CalcLinVect(CX, CY, CZ)
         numWayPts = 10
         # numWayPts = int(LineDist/2)
@@ -705,8 +721,8 @@ def executeRow():
 
         ##GENERATE WAYPOINTS CMD
         WayPtsCMD = "ML" + str(numWayPts)
-        ser.write(WayPtsCMD.encode())
-        ser.flushInput()
+        serial_teensy.write(WayPtsCMD.encode())
+        serial_teensy.flushInput()
         time.sleep(.01)
         for i in range(numWayPts + 1):
             curWayDis = (1 / numWayPts) * i
@@ -729,19 +745,19 @@ def executeRow():
 
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
-            ser.write(commandCalc.encode())
-            ser.flushInput()
-            RobotCode = str(ser.readline())
+            serial_teensy.write(commandCalc.encode())
+            serial_teensy.flushInput()
+            RobotCode = str(serial_teensy.readline())
             Pcode = RobotCode[2:4]
-            if (Pcode == "01"):
-                applyRobotCal(RobotCode)
+            if Pcode == "01":
+                apply_robot_calibration(RobotCode)
         blockEncPosCal = 0
-        getRobotPosition()
+        get_robot_position()
 
         ##Move A Command##
-    if (cmdType == "Move A"):
+    if cmdType == "Move A":
         subCmd = command[:10]
-        if (subCmd == "Move A Mid" or subCmd == "Move A End"):
+        if subCmd == "Move A Mid" or subCmd == "Move A End":
             almStatusLab.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
             almStatusLab2.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
         J1newIndex = command.find("X) ")
@@ -882,8 +898,8 @@ def executeRow():
 
         ##GENERATE WAYPOINTS CMD
         WayPtsCMD = "ML" + str(numWayPts)
-        ser.write(WayPtsCMD.encode())
-        ser.flushInput()
+        serial_teensy.write(WayPtsCMD.encode())
+        serial_teensy.flushInput()
 
         ###LOOP FIND ALL POINTS IN ARC
         cur_deg = theta_Deg
@@ -914,19 +930,19 @@ def executeRow():
 
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
-            ser.write(commandCalc.encode())
-            ser.flushInput()
+            serial_teensy.write(commandCalc.encode())
+            serial_teensy.flushInput()
             time.sleep(.01)
-            ser.read()
-        ser.flushInput()
-        ser.read()
-        getRobotPosition()
+            serial_teensy.read()
+        serial_teensy.flushInput()
+        serial_teensy.read()
+        get_robot_position()
 
         ##Move C Command##
-    if (cmdType == "Move C"):
+    if cmdType == "Move C":
         blockEncPosCal = 1
         subCmd = command[:10]
-        if (subCmd == "Move C Sta" or subCmd == "Move C Pla"):
+        if subCmd == "Move C Sta" or subCmd == "Move C Pla":
             almStatusLab.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
             almStatusLab2.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
         J1newIndex = command.find("X) ")
@@ -1023,7 +1039,7 @@ def executeRow():
         ###FIND ANGLE & NUM WAYPOINTS
         # numWayPts = 220
         numWayPts = 120
-        theta_Deg = (360 / (numWayPts))
+        theta_Deg = (360 / numWayPts)
         ###DEFINE START VECTOR
         v = [sCXmid, sCYmid, sCZmid]
         ###MOVE TO BEGINING OF ARC
@@ -1048,8 +1064,8 @@ def executeRow():
 
         ##GENERATE WAYPOINTS CMD
         WayPtsCMD = "MC" + str(numWayPts)
-        ser.write(WayPtsCMD.encode())
-        ser.flushInput()
+        serial_teensy.write(WayPtsCMD.encode())
+        serial_teensy.flushInput()
         time.sleep(.02)
 
         ###LOOP FIND ALL POINTS IN ARC
@@ -1083,16 +1099,16 @@ def executeRow():
 
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
-            ser.write(commandCalc.encode())
-            ser.flushInput()
-            RobotCode = str(ser.readline())
+            serial_teensy.write(commandCalc.encode())
+            serial_teensy.flushInput()
+            RobotCode = str(serial_teensy.readline())
             Pcode = RobotCode[2:4]
-            if (Pcode == "01"):
-                applyRobotCal(RobotCode)
+            if Pcode == "01":
+                apply_robot_calibration(RobotCode)
                 # ser.flushInput()
         # ser.read()
         blockEncPosCal = 0
-        getRobotPosition()
+        get_robot_position()
 
     rowinproc = 0
 
@@ -1109,13 +1125,9 @@ def rotation_matrix(axis, theta):
                      [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
 
 
-##############################################################################################################################################################
 ### BUTTON JOGGING DEFS ############################################################################################################## BUTTON JOGGING DEFS ###
-##############################################################################################################################################################
-
-
 def xbox():
-    def threadxbox():
+    def xbox_thread():
         from inputs import get_gamepad
         global xboxUse
         jogMode = 1
@@ -1138,17 +1150,17 @@ def xbox():
                 events = get_gamepad()
                 for event in events:
                     ##DISTANCE
-                    if (event.code == 'ABS_RZ' and event.state >= 100):
+                    if event.code == 'ABS_RZ' and event.state >= 100:
                         ChgDis(0)
-                    elif (event.code == 'ABS_Z' and event.state >= 100):
+                    elif event.code == 'ABS_Z' and event.state >= 100:
                         ChgDis(1)
                     ##SPEED
-                    elif (event.code == 'BTN_TR' and event.state == 1):
+                    elif event.code == 'BTN_TR' and event.state == 1:
                         ChgSpd(0)
-                    elif (event.code == 'BTN_TL' and event.state == 1):
+                    elif event.code == 'BTN_TL' and event.state == 1:
                         ChgSpd(1)
                     ##JOINT MODE
-                    elif (event.code == 'BTN_WEST' and event.state == 1):
+                    elif event.code == 'BTN_WEST' and event.state == 1:
                         if mainMode != 1:
                             mainMode = 1
                             jogMode = 1
@@ -1167,32 +1179,32 @@ def xbox():
                             almStatusLab.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
                             almStatusLab2.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
                     ##JOINT JOG
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
                         J1jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
                         J1jogPos()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
                         J2jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
                         J2jogPos()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2:
                         J3jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2:
                         J3jogPos()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2:
                         J4jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2:
                         J4jogPos()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 3):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 3:
                         J5jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 3):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 3:
                         J5jogPos()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 3):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 3:
                         J6jogNeg()
-                    elif (mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 3):
+                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 3:
                         J6jogPos()
-                        ##CARTESIAN DIR MODE
-                    elif (event.code == 'BTN_SOUTH' and event.state == 1):
+                    ##CARTESIAN DIR MODE
+                    elif event.code == 'BTN_SOUTH' and event.state == 1:
                         if mainMode != 2:
                             mainMode = 2
                             jogMode = 1
@@ -1208,20 +1220,20 @@ def xbox():
                             almStatusLab.config(text='JOGGING X & Y AXIS', bg="lightgreen")
                             almStatusLab2.config(text='JOGGING X & Y AXIS', bg="lightgreen")
                     ##CARTESIAN DIR JOG
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
                         XjogNeg()
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
                         XjogPos()
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
                         YjogNeg()
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
                         YjogPos()
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2:
                         ZjogNeg()
-                    elif (mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2):
+                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2:
                         ZjogPos()
-                        ##CARTESIAN ORIENTATION MODE
-                    elif (event.code == 'BTN_EAST' and event.state == 1):
+                    ##CARTESIAN ORIENTATION MODE
+                    elif event.code == 'BTN_EAST' and event.state == 1:
                         if mainMode != 3:
                             mainMode = 3
                             jogMode = 1
@@ -1237,59 +1249,58 @@ def xbox():
                             almStatusLab.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
                             almStatusLab2.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
                     ##CARTESIAN ORIENTATION JOG
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
                         RxjogNeg()
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
                         RxjogPos()
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
                         RyjogNeg()
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
                         RyjogPos()
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2:
                         RzjogNeg()
-                    elif (mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2):
+                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2:
                         RzjogPos()
                     ##TRACK MODE
-                    elif (event.code == 'BTN_START' and event.state == 1):
+                    elif event.code == 'BTN_START' and event.state == 1:
                         mainMode = 4
                         almStatusLab.config(text='JOGGING TRACK', bg="lightgreen")
                         almStatusLab2.config(text='JOGGING TRACK', bg="lightgreen")
                     ##TRACK JOG
-                    elif (mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == 1):
+                    elif mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == 1:
                         TrackjogPos()
-                    elif (mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == -1):
+                    elif mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == -1:
                         TrackjogNeg()
-                        ##TEACH POS
-                    elif (event.code == 'BTN_NORTH' and event.state == 1):
+                    ##TEACH POS
+                    elif event.code == 'BTN_NORTH' and event.state == 1:
                         teachInsertBelSelected()
                     ##GRIPPER
-                    elif (event.code == 'BTN_SELECT' and event.state == 1):
+                    elif event.code == 'BTN_SELECT' and event.state == 1:
                         if grip == 0:
                             grip = 1
                             outputNum = DO1offEntryField.get()
                             command = "OFX" + outputNum + "\n"
-                            ser2.write(command.encode())
-                            ser2.flushInput()
+                            serial_arduino.write(command.encode())
+                            serial_arduino.flushInput()
                             time.sleep(.2)
-                            ser2.read()
+                            serial_arduino.read()
                         else:
                             grip = 0
                             outputNum = DO1onEntryField.get()
                             command = "ONX" + outputNum + "\n"
-                            ser2.write(command.encode())
-                            ser2.flushInput()
+                            serial_arduino.write(command.encode())
+                            serial_arduino.flushInput()
                             time.sleep(.2)
-                            ser2.read()
+                            serial_arduino.read()
                             time.sleep(.1)
             except:
                 almStatusLab.config(text='XBOX CONTROLLER NOT RESPONDING', bg="red")
                 almStatusLab2.config(text='XBOX CONTROLLER NOT RESPONDING', bg="red")
-                Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-                tab6.ElogView.insert(tk.END, Curtime + " - " + "XBOX CONTROLLER NOT RESPONDING")
+                tab6.ElogView.insert(tk.END, get_current_time() + " - " + "XBOX CONTROLLER NOT RESPONDING")
                 value = tab6.ElogView.get(0, tk.END)
                 pickle.dump(value, open("ErrorLog", "wb"))
 
-    t = threading.Thread(target=threadxbox)
+    t = threading.Thread(target=xbox_thread)
     t.start()
 
 
@@ -1393,25 +1404,25 @@ def J1jogNeg():
         # switch from degs to steps
         J1jogSteps = J1Degs
         J1Degs = J1Degs * J1DegPerStep
-    if (J1Degs <= -(J1NegAngLim - J1AngCur)):
+    if J1Degs <= -(J1NegAngLim - J1AngCur):
         J1StepCur = J1StepCur - int(J1jogSteps)
         J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
         J1curAngEntryField.delete(0, 'end')
         J1curAngEntryField.insert(0, str(J1AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJA" + J1motdir + str(
             J1jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
@@ -1448,29 +1459,29 @@ def J1jogPos():
         J1jogSteps = J1Degs
         J1Degs = J1Degs * J1DegPerStep
     # calc pos dir output
-    if (J1motdir == "0"):
+    if J1motdir == "0":
         J1drivedir = "1"
     else:
         J1drivedir = "0"
-    if (J1Degs <= (J1PosAngLim - J1AngCur)):
+    if J1Degs <= (J1PosAngLim - J1AngCur):
         J1StepCur = J1StepCur + int(J1jogSteps)
         J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
         J1curAngEntryField.delete(0, 'end')
         J1curAngEntryField.insert(0, str(J1AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJA" + J1drivedir + str(
             J1jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
@@ -1506,25 +1517,25 @@ def J2jogNeg():
         # switch from degs to steps
         J2jogSteps = J2Degs
         J2Degs = J2Degs * J2DegPerStep
-    if (J2Degs <= -(J2NegAngLim - J2AngCur)):
+    if J2Degs <= -(J2NegAngLim - J2AngCur):
         J2StepCur = J2StepCur - int(J2jogSteps)
         J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
         J2curAngEntryField.delete(0, 'end')
         J2curAngEntryField.insert(0, str(J2AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJB" + J2motdir + str(
             J2jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
@@ -1561,29 +1572,29 @@ def J2jogPos():
         J2jogSteps = J2Degs
         J2Degs = J2Degs * J2DegPerStep
     # calc pos dir output
-    if (J2motdir == "0"):
+    if J2motdir == "0":
         J2drivedir = "1"
     else:
         J2drivedir = "0"
-    if (J2Degs <= (J2PosAngLim - J2AngCur)):
+    if J2Degs <= (J2PosAngLim - J2AngCur):
         J2StepCur = J2StepCur + int(J2jogSteps)
         J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
         J2curAngEntryField.delete(0, 'end')
         J2curAngEntryField.insert(0, str(J2AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJB" + J2drivedir + str(
             J2jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
@@ -1619,25 +1630,25 @@ def J3jogNeg():
         # switch from degs to steps
         J3jogSteps = J3Degs
         J3Degs = J3Degs * J3DegPerStep
-    if (J3Degs <= -(J3NegAngLim - J3AngCur)):
+    if J3Degs <= -(J3NegAngLim - J3AngCur):
         J3StepCur = J3StepCur - int(J3jogSteps)
         J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
         J3curAngEntryField.delete(0, 'end')
         J3curAngEntryField.insert(0, str(J3AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJC" + J3motdir + str(
             J3jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
@@ -1674,29 +1685,29 @@ def J3jogPos():
         J3jogSteps = J3Degs
         J3Degs = J3Degs * J3DegPerStep
     # calc pos dir output
-    if (J3motdir == "0"):
+    if J3motdir == "0":
         J3drivedir = "1"
     else:
         J3drivedir = "0"
-    if (J3Degs <= (J3PosAngLim - J3AngCur)):
+    if J3Degs <= (J3PosAngLim - J3AngCur):
         J3StepCur = J3StepCur + int(J3jogSteps)
         J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
         J3curAngEntryField.delete(0, 'end')
         J3curAngEntryField.insert(0, str(J3AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJC" + J3drivedir + str(
             J3jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
@@ -1732,25 +1743,25 @@ def J4jogNeg():
         # switch from degs to steps
         J4jogSteps = J4Degs
         J4Degs = J4Degs * J4DegPerStep
-    if (J4Degs <= -(J4NegAngLim - J4AngCur)):
+    if J4Degs <= -(J4NegAngLim - J4AngCur):
         J4StepCur = J4StepCur - int(J4jogSteps)
         J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
         J4curAngEntryField.delete(0, 'end')
         J4curAngEntryField.insert(0, str(J4AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJD" + J4motdir + str(
             J4jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
@@ -1787,29 +1798,29 @@ def J4jogPos():
         J4jogSteps = J4Degs
         J4Degs = J4Degs * J4DegPerStep
     # calc pos dir output
-    if (J4motdir == "0"):
+    if J4motdir == "0":
         J4drivedir = "1"
     else:
         J4drivedir = "0"
-    if (J4Degs <= (J4PosAngLim - J4AngCur)):
+    if J4Degs <= (J4PosAngLim - J4AngCur):
         J4StepCur = J4StepCur + int(J4jogSteps)
         J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
         J4curAngEntryField.delete(0, 'end')
         J4curAngEntryField.insert(0, str(J4AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJD" + J4drivedir + str(
             J4jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
@@ -1845,25 +1856,25 @@ def J5jogNeg():
         # switch from degs to steps
         J5jogSteps = J5Degs
         J5Degs = J5Degs * J5DegPerStep
-    if (J5Degs <= -(J5NegAngLim - J5AngCur)):
+    if J5Degs <= -(J5NegAngLim - J5AngCur):
         J5StepCur = J5StepCur - int(J5jogSteps)
         J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
         J5curAngEntryField.delete(0, 'end')
         J5curAngEntryField.insert(0, str(J5AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJE" + J5motdir + str(
             J5jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
@@ -1900,29 +1911,29 @@ def J5jogPos():
         J5jogSteps = J5Degs
         J5Degs = J5Degs * J5DegPerStep
     # calc pos dir output
-    if (J5motdir == "0"):
+    if J5motdir == "0":
         J5drivedir = "1"
     else:
         J5drivedir = "0"
-    if (J5Degs <= (J5PosAngLim - J5AngCur)):
+    if J5Degs <= (J5PosAngLim - J5AngCur):
         J5StepCur = J5StepCur + int(J5jogSteps)
         J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
         J5curAngEntryField.delete(0, 'end')
         J5curAngEntryField.insert(0, str(J5AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJE" + J5drivedir + str(
             J5jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
@@ -1958,25 +1969,25 @@ def J6jogNeg():
         # switch from degs to steps
         J6jogSteps = J6Degs
         J6Degs = J6Degs * J6DegPerStep
-    if (J6Degs <= -(J6NegAngLim - J6AngCur)):
+    if J6Degs <= -(J6NegAngLim - J6AngCur):
         J6StepCur = J6StepCur - int(J6jogSteps)
         J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
         J6curAngEntryField.delete(0, 'end')
         J6curAngEntryField.insert(0, str(J6AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJF" + J6motdir + str(
             J6jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
@@ -2013,29 +2024,29 @@ def J6jogPos():
         J6jogSteps = J6Degs
         J6Degs = J6Degs * J6DegPerStep
     # calc pos dir output
-    if (J6motdir == "0"):
+    if J6motdir == "0":
         J6drivedir = "1"
     else:
         J6drivedir = "0"
-    if (J6Degs <= (J6PosAngLim - J6AngCur)):
+    if J6Degs <= (J6PosAngLim - J6AngCur):
         J6StepCur = J6StepCur + int(J6jogSteps)
         J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
         J6curAngEntryField.delete(0, 'end')
         J6curAngEntryField.insert(0, str(J6AngCur))
-        savePosData()
-        CalcFwdKin()
+        save_position_data()
+        calculate_direct_kinematics_problem()
         command = "MJF" + J6drivedir + str(
             J6jogSteps) + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
-        RobotCode = str(ser.readline())
+        RobotCode = str(serial_teensy.readline())
         Pcode = RobotCode[2:4]
-        if (Pcode == "01"):
-            applyRobotCal(RobotCode)
+        if Pcode == "01":
+            apply_robot_calibration(RobotCode)
     else:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
@@ -2399,16 +2410,16 @@ def TrackjogNeg():
         TrackSteps = TrackjogEntryField.get()
     else:
         TrackSteps = str(int((TrackStepLim / TrackLength) * CT))
-    if (TrackcurPos - (float(TrackSteps) * (TrackLength / TrackStepLim)) >= 0):
+    if TrackcurPos - (float(TrackSteps) * (TrackLength / TrackStepLim)) >= 0:
         command = "MJT0" + TrackSteps + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
-        ser.read()
+        serial_teensy.read()
         TrackcurPos = TrackcurPos - (float(TrackSteps) * (TrackLength / TrackStepLim))
         TrackcurEntryField.delete(0, 'end')
         TrackcurEntryField.insert(0, str(TrackcurPos))
-        savePosData()
+        save_position_data()
     else:
         almStatusLab.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
         almStatusLab2.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
@@ -2435,16 +2446,16 @@ def TrackjogPos():
         TrackSteps = TrackjogEntryField.get()
     else:
         TrackSteps = str(int((TrackStepLim / TrackLength) * CT))
-    if (TrackcurPos + (float(TrackSteps) * (TrackLength / TrackStepLim)) <= TrackLength):
+    if TrackcurPos + (float(TrackSteps) * (TrackLength / TrackStepLim)) <= TrackLength:
         command = "MJT1" + TrackSteps + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "\n"
-        ser.write(command.encode())
-        ser.flushInput()
+        serial_teensy.write(command.encode())
+        serial_teensy.flushInput()
         time.sleep(.2)
-        ser.read()
+        serial_teensy.read()
         TrackcurPos = TrackcurPos + (float(TrackSteps) * (TrackLength / TrackStepLim))
         TrackcurEntryField.delete(0, 'end')
         TrackcurEntryField.insert(0, str(TrackcurPos))
-        savePosData()
+        save_position_data()
     else:
         almStatusLab.config(text="TRACK POS TRAVEL LIMIT", bg="red")
         almStatusLab2.config(text="TRACK POS TRAVEL LIMIT", bg="red")
@@ -2797,7 +2808,7 @@ def teachInsertBelSelected():
     J6AngWrite = str(round(RzcurPos, 3))
     TrackPosWrite = str(round(TrackcurPos, 3))
     movetype = options.get()
-    if (movetype == "OFFS J"):
+    if movetype == "OFFS J":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
@@ -2805,7 +2816,7 @@ def teachInsertBelSelected():
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move SP"):
+    elif movetype == "Move SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
         newPos = movetype + " [*]  T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
@@ -2813,7 +2824,7 @@ def teachInsertBelSelected():
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "OFFS SP"):
+    elif movetype == "OFFS SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "] offs [*SP:" + str(
             int(SavePosEntryField.get()) + 1) + "] "
         newPos = movetype + " [*]  T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
@@ -2822,63 +2833,63 @@ def teachInsertBelSelected():
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move J"):
+    elif movetype == "Move J":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move L"):
+    elif movetype == "Move L":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move A Beg"):
+    elif movetype == "Move A Beg":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move A Mid"):
+    elif movetype == "Move A Mid":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move A End"):
+    elif movetype == "Move A End":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move C Center"):
+    elif movetype == "Move C Center":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move C Start"):
+    elif movetype == "Move C Start":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Move C Plane"):
+    elif movetype == "Move C Plane":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
         pickle.dump(value, open(ProgEntryField.get(), "wb"))
-    elif (movetype == "Teach SP"):
+    elif movetype == "Teach SP":
         SP = str(SavePosEntryField.get())
         SPE6 = "Store Position " + SP + " Element 6 = " + str(round(RzcurPos, 3))
         tab1.progView.insert(selRow, SPE6)
@@ -2919,7 +2930,7 @@ def teachReplaceSelected():
     J6AngWrite = str(round(RzcurPos, 3))
     TrackPosWrite = str(round(TrackcurPos, 3))
     movetype = options.get()
-    if (movetype[:-2] == "OFFS"):
+    if movetype[:-2] == "OFFS":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
     newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
     tab1.progView.insert(selRow, newPos)
@@ -2954,18 +2965,19 @@ def teachFineCal():
     newPos = "Move J [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
     fineCalEntryField.delete(0, 'end')
     fineCalEntryField.insert(0, str(newPos))
-    savePosData()
+    save_position_data()
     almStatusLab.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
     almStatusLab2.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
-    Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-    tab6.ElogView.insert(tk.END, Curtime + " - " + "NEW FINE CALIBRATION POSITION TAUGHT")
+    tab6.ElogView.insert(tk.END, get_current_time() + " - " + "NEW FINE CALIBRATION POSITION TAUGHT")
+
     value = tab6.ElogView.get(0, tk.END)
-    pickle.dump(value, open("ErrorLog", "wb"))
+    with open("ErrorLog", "wb") as error_file:
+        pickle.dump(value, error_file)
 
 
 # PROGRAM_FUNCTION_DEFS
 
-def delete_item():
+def delete_line():
     selRow = tab1.progView.curselection()[0]
     selection = tab1.progView.curselection()
     tab1.progView.delete(selection[0])
@@ -2975,11 +2987,12 @@ def delete_item():
         pickle.dump(value, program_file)
 
 
-def manInsItem():
+def insert_line():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -2990,11 +3003,13 @@ def manInsItem():
     curRowEntryField.delete(0, 'end')
     curRowEntryField.insert(0, selRow)
     tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
+
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(value, f)
 
 
-def manReplItem():
+def replace_line():
     # selRow = curRowEntryField.get()
     selRow = tab1.progView.curselection()[0]
     tab1.progView.delete(selRow)
@@ -3002,15 +3017,18 @@ def manReplItem():
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
     tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
+
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(value, f)
 
 
-def waitTime():
+def wait_time():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -3019,32 +3037,38 @@ def waitTime():
     tab1.progView.insert(selRow, newTime)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
+
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(value, f)
 
 
-def waitInputOn():
+def wait_input_on():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
-    input = waitInputEntryField.get()
-    newInput = "Wait Input On = " + input
+    time_to_wait = waitInputEntryField.get()
+    newInput = "Wait Input On = " + time_to_wait
     tab1.progView.insert(selRow, newInput)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
+
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(value, f)
 
 
-def waitInputOff():
+def wait_input_off():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -3057,11 +3081,12 @@ def waitInputOff():
     pickle.dump(value, open(ProgEntryField.get(), "wb"))
 
 
-def setOutputOn():
+def set_output_on():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -3070,15 +3095,18 @@ def setOutputOn():
     tab1.progView.insert(selRow, newOutput)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
+
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(value, f)
 
 
-def setOutputOff():
+def set_output_off():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -3199,30 +3227,30 @@ def Servo():
     pickle.dump(value, open(ProgEntryField.get(), "wb"))
 
 
-def loadProg():
-    progframe = tk.Frame(tab1)
-    progframe.place(x=7, y=174)
-    # progframe.pack(side=RIGHT, fill=Y)
-    scrollbar = tk.Scrollbar(progframe)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    tab1.progView = tk.Listbox(progframe, width=84, height=31, yscrollcommand=scrollbar.set)
+def load_program():
+    program_frame = tk.Frame(tab1)
+    program_frame.place(x=7, y=174)
+    # program_frame.pack(side=RIGHT, fill=Y)u
+    program_view_scrollbar = tk.Scrollbar(program_frame)
+    program_view_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    tab1.progView = tk.Listbox(program_frame, width=84, height=31, yscrollcommand=program_view_scrollbar.set)
     tab1.progView.bind('<<ListboxSelect>>', progViewselect)
+
+    program_file = ProgEntryField.get()
     try:
-        Prog = pickle.load(open(ProgEntryField.get(), "rb"))
-    except:
-        try:
-            Prog = ['##BEGINNING OF PROGRAM##', 'Tab Number 1']
-            pickle.dump(Prog, open(ProgEntryField.get(), "wb"))
-        except:
-            Prog = ['##BEGINNING OF PROGRAM##', 'Tab Number 1']
-            pickle.dump(Prog, open("new", "wb"))
-            ProgEntryField.insert(0, "new")
-    time.sleep(.2)
-    for item in Prog:
-        tab1.progView.insert(tk.END, item)
-    tab1.progView.pack()
-    scrollbar.config(command=tab1.progView.yview)
-    savePosData()
+        with open(program_file, 'rb') as f:
+            program = pickle.load(f)
+
+        time.sleep(.2)
+
+        for line in program:
+            tab1.progView.insert(tk.END, line)
+
+        tab1.progView.pack()
+        program_view_scrollbar.config(command=tab1.progView.yview)
+        save_position_data()
+    except FileNotFoundError:
+        messagebox.showwarning("Load program", "File not found")
 
 
 def insertCallProg():
@@ -3350,218 +3378,220 @@ def getSel():
 
 
 def Servo0on():
-    savePosData()
+    save_position_data()
     servoPos = servo0onEntryField.get()
     command = "SV0P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo0off():
-    savePosData()
+    save_position_data()
     servoPos = servo0offEntryField.get()
     command = "SV0P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo1on():
-    savePosData()
+    save_position_data()
     servoPos = servo1onEntryField.get()
     command = "SV1P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo1off():
-    savePosData()
+    save_position_data()
     servoPos = servo1offEntryField.get()
     command = "SV1P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo2on():
-    savePosData()
+    save_position_data()
     servoPos = servo2onEntryField.get()
     command = "SV2P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo2off():
-    savePosData()
+    save_position_data()
     servoPos = servo2offEntryField.get()
     command = "SV2P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def Servo3on():
-    savePosData()
+    save_position_data()
     servoPos = servo3onEntryField.get()
     command = "SV3P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser.read()
+    serial_teensy.read()
 
 
 def Servo3off():
-    savePosData()
+    save_position_data()
     servoPos = servo3offEntryField.get()
     command = "SV3P" + servoPos + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser.read()
+    serial_teensy.read()
 
 
 def DO1on():
     outputNum = DO1onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO1off():
     outputNum = DO1offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO2on():
     outputNum = DO2onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO2off():
     outputNum = DO2offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO3on():
     outputNum = DO3onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO3off():
     outputNum = DO3offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO4on():
     outputNum = DO4onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO4off():
     outputNum = DO4offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO5on():
     outputNum = DO5onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO5off():
     outputNum = DO5offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO6on():
     outputNum = DO6onEntryField.get()
     command = "ONX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
 def DO6off():
     outputNum = DO6offEntryField.get()
     command = "OFX" + outputNum + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(.2)
-    ser2.read()
+    serial_arduino.read()
 
 
-def TestString():
+def send_test_string():
     message = testSendEntryField.get()
     command = "TM" + message + "\n"
-    ser2.write(command.encode())
-    ser2.flushInput()
+    serial_arduino.write(command.encode())
+    serial_arduino.flushInput()
     time.sleep(0)
-    echo = ser2.readline()
+    echo = serial_arduino.readline()
     testRecEntryField.delete(0, 'end')
     testRecEntryField.insert(0, echo)
 
 
-def ClearTestString():
+def clear_test_string():
     testRecEntryField.delete(0, 'end')
 
 
-def CalcLinDist(X2, Y2, Z2):
+def calculate_linear_distance(X2, Y2, Z2):
     global XcurPos
     global YcurPos
     global ZcurPos
-    global LineDist
+    global linear_distance
     X1 = XcurPos
     Y1 = YcurPos
     Z1 = ZcurPos
-    LineDist = (((X2 - X1) ** 2) + ((Y2 - Y1) ** 2) + ((Z2 - Z1) ** 2)) ** .5
-    return (LineDist)
+    # TODO: calculate linear distance with function math.dist(p, q)
+    linear_distance = math.sqrt(math.pow(X2 - X1, 2) + math.pow(Y2 - Y1, 2) + math.pow(Z2 - Z1, 2))
+    # linear_distance = (((X2 - X1) ** 2) + ((Y2 - Y1) ** 2) + ((Z2 - Z1) ** 2)) ** .5
+    return linear_distance
 
 
 def CalcLinVect(X2, Y2, Z2):
@@ -3577,7 +3607,7 @@ def CalcLinVect(X2, Y2, Z2):
     Xv = X2 - X1
     Yv = Y2 - Y1
     Zv = Z2 - Z1
-    return (Xv, Yv, Zv)
+    return Xv, Yv, Zv
 
 
 def CalcLinWayPt(CX, CY, CZ, curWayPt, ):
@@ -3586,11 +3616,8 @@ def CalcLinWayPt(CX, CY, CZ, curWayPt, ):
     global ZcurPos
 
 
-##############################################################################################################################################################
 ### KINEMATIC DEFS ######################################################################################################################## KINEMATIC DEFS ###
-##############################################################################################################################################################
-
-def CalcFwdKin():
+def calculate_direct_kinematics_problem():
     global XcurPos
     global YcurPos
     global ZcurPos
@@ -3604,20 +3631,20 @@ def CalcFwdKin():
     global J5AngCur
     global J6AngCur
     global WC
-    if (J1AngCur == 0):
+    if J1AngCur == 0:
         J1AngCur = .0001
-    if (J2AngCur == 0):
+    if J2AngCur == 0:
         J2AngCur = .0001
-    if (J3AngCur == 0):
+    if J3AngCur == 0:
         J3AngCur = .0001
-    if (J4AngCur == 0):
+    if J4AngCur == 0:
         J4AngCur = .0001
-    if (J5AngCur == 0):
+    if J5AngCur == 0:
         J5AngCur = .0001
-    if (J6AngCur == 0):
+    if J6AngCur == 0:
         J6AngCur = .0001
         ## Set Wrist Config
-    if (J5AngCur > 0):
+    if J5AngCur > 0:
         WC = "F"
     else:
         WC = "N"
@@ -3672,16 +3699,12 @@ def CalcFwdKin():
     B22 = math.sin(math.radians(H18)) * math.cos(math.radians(H17))
     B23 = -math.sin(math.radians(H18))
     B24 = 0
-    C21 = -math.sin(math.radians(H18)) * math.cos(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(
-        math.radians(H17)) * math.sin(math.radians(H16))
-    C22 = math.cos(math.radians(H18)) * math.cos(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(
-        math.radians(H17)) * math.sin(math.radians(H16))
+    C21 = -math.sin(math.radians(H18)) * math.cos(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(math.radians(H17)) * math.sin(math.radians(H16))
+    C22 = math.cos(math.radians(H18)) * math.cos(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(math.radians(H17)) * math.sin(math.radians(H16))
     C23 = math.cos(math.radians(H17)) * math.sin(math.radians(H16))
     C24 = 0
-    D21 = math.sin(math.radians(H18)) * math.sin(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(
-        math.radians(H17)) * math.cos(math.radians(H16))
-    D22 = -math.cos(math.radians(H18)) * math.sin(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(
-        math.radians(H17)) * math.cos(math.radians(H16))
+    D21 = math.sin(math.radians(H18)) * math.sin(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(math.radians(H17)) * math.cos(math.radians(H16))
+    D22 = -math.cos(math.radians(H18)) * math.sin(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(math.radians(H17)) * math.cos(math.radians(H16))
     D23 = math.cos(math.radians(H17)) * math.cos(math.radians(H16))
     D24 = 0
     E21 = H13
@@ -3960,7 +3983,7 @@ def CalcFwdKin():
     RzcurEntryField.insert(0, str(RzcurPos))
 
 
-def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
+def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
     global J1out
     global J2out
     global J3out
@@ -3973,17 +3996,17 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
     global J4AngCur
     global J5AngCur
     global J6AngCur
-    if (J1AngCur == 0):
+    if J1AngCur == 0:
         J1AngCur = .0001
-    if (J2AngCur == 0):
+    if J2AngCur == 0:
         J2AngCur = .0001
-        if (J3AngCur == 0):
+        if J3AngCur == 0:
             J3AngCur = .0001
-        if (J4AngCur == 0):
+        if J4AngCur == 0:
             J4AngCur = .0001
-        if (J5AngCur == 0):
+        if J5AngCur == 0:
             J5AngCur = .0001
-        if (J6AngCur == 0):
+        if J6AngCur == 0:
             J6AngCur = .0001
             # input
         O4 = CX
@@ -3993,26 +4016,26 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         O8 = CRy
         O7 = CRz
         V8 = WC
-        if (O4 == 0):
+        if O4 == 0:
             O4 = .0001
-        if (O5 == 0):
+        if O5 == 0:
             O5 = .0001
-        if (O6 == 0):
+        if O6 == 0:
             O6 = .0001
-        if (O7 == 0):
+        if O7 == 0:
             O7 = .0001
-        if (O8 == 0):
+        if O8 == 0:
             O8 = .0001
-        if (O9 == 0):
+        if O9 == 0:
             O9 = .0001
             # quadrant
-        if (O4 > 0 and O5 > 0):
+        if O4 > 0 and O5 > 0:
             V9 = 1
-        elif (O4 > 0 and O5 < 0):
+        elif O4 > 0 and O5 < 0:
             V9 = 2
-        elif (O4 < 0 and O5 < 0):
+        elif O4 < 0 and O5 < 0:
             V9 = 3
-        elif (O4 < 0 and O5 > 0):
+        elif O4 < 0 and O5 > 0:
             V9 = 4
         ## DH TABLE
         D13 = math.radians(DHr1)
@@ -4112,17 +4135,17 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
             math.radians(J17)) * math.sin(math.radians(J16))
         Z42 = math.sin(math.radians(J18)) * math.sin(math.radians(J16)) + math.cos(math.radians(J18)) * math.sin(
             math.radians(J17)) * math.cos(math.radians(J16))
-        AA42 = (J13)
+        AA42 = J13
         X43 = math.sin(math.radians(J18)) * math.cos(math.radians(J17))
         Y43 = math.cos(math.radians(J18)) * math.cos(math.radians(J16)) + math.sin(math.radians(J18)) * math.sin(
             math.radians(J17)) * math.sin(math.radians(J16))
         Z43 = -math.cos(math.radians(J18)) * math.sin(math.radians(J16)) + math.sin(math.radians(J18)) * math.sin(
             math.radians(J17)) * math.cos(math.radians(J16))
-        AA43 = (J14)
+        AA43 = J14
         X44 = -math.sin(math.radians(J18))
         Y44 = math.cos(math.radians(J17)) * math.sin(math.radians(J16))
         Z44 = math.cos(math.radians(J17)) * math.cos(math.radians(J16))
-        AA44 = (J15)
+        AA44 = J15
         X45 = 0
         Y45 = 0
         Z45 = 0
@@ -4196,14 +4219,14 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         Z69 = (X57 * Z60) + (Y57 * Z61) + (Z57 * Z62) + (AA57 * Z63)
         AA69 = (X57 * AA60) + (Y57 * AA61) + (Z57 * AA62) + (AA57 * AA63)
         ## CALCULATE J1 ANGLE
-        O13 = math.atan((AA67) / (AA66))
-        if (V9 == 1):
+        O13 = math.atan(AA67 / AA66)
+        if V9 == 1:
             P13 = math.degrees(O13)
-        if (V9 == 2):
+        if V9 == 2:
             P13 = math.degrees(O13)
-        if (V9 == 3):
+        if V9 == 3:
             P13 = -180 + math.degrees(O13)
-        if (V9 == 4):
+        if V9 == 4:
             P13 = 180 + math.degrees(O13)
         ## CALCULATE J2 ANGLE	FWD
 
@@ -4234,7 +4257,7 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         P27 = P23
         ## J1,J2,J3
         Q4 = P13
-        if (O18 < 0):
+        if O18 < 0:
             Q5 = P26
             Q6 = P27
         else:
@@ -4275,14 +4298,14 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         P45 = 0
         Q45 = 1
         ## J3
-        N48 = math.cos(math.radians((Q6) - 90))
-        O48 = -math.sin(math.radians((Q6) - 90)) * math.cos(D15)
-        P48 = math.sin(math.radians((Q6) - 90)) * math.sin(D15)
-        Q48 = F15 * math.cos(math.radians((Q6) - 90))
-        N49 = math.sin(math.radians((Q6) - 90))
-        O49 = math.cos(math.radians((Q6) - 90)) * math.cos(D15)
-        P49 = -math.cos(math.radians((Q6) - 90)) * math.sin(D15)
-        Q49 = F15 * math.sin(math.radians((Q6) - 90))
+        N48 = math.cos(math.radians(Q6 - 90))
+        O48 = -math.sin(math.radians(Q6 - 90)) * math.cos(D15)
+        P48 = math.sin(math.radians(Q6 - 90)) * math.sin(D15)
+        Q48 = F15 * math.cos(math.radians(Q6 - 90))
+        N49 = math.sin(math.radians(Q6 - 90))
+        O49 = math.cos(math.radians(Q6 - 90)) * math.cos(D15)
+        P49 = -math.cos(math.radians(Q6 - 90)) * math.sin(D15)
+        Q49 = F15 * math.sin(math.radians(Q6 - 90))
         N50 = 0
         O50 = math.sin(D15)
         P50 = math.cos(D15)
@@ -4365,25 +4388,25 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         ## WRIST ORENTATION
         R7 = math.degrees(math.atan2(Z73, Z72))
         R8 = math.degrees(math.atan2(+math.sqrt(1 - Z74 ** 2), Z74))
-        if (Y74 < 0):
+        if Y74 < 0:
             R9 = math.degrees(math.atan2(-Y74, X74)) - 180
         else:
             R9 = math.degrees(math.atan2(-Y74, X74)) + 180
         S7 = math.degrees(math.atan2(-Z73, -Z72))
         S8 = math.degrees(math.atan2(-math.sqrt(1 - Z74 ** 2), Z74))
-        if (Y74 < 0):
+        if Y74 < 0:
             S9 = math.degrees(math.atan2(Y74, -X74)) + 180
         else:
             S9 = math.degrees(math.atan2(Y74, -X74)) - 180
-        if (V8 == "F"):
+        if V8 == "F":
             Q8 = R8
         else:
             Q8 = S8
-        if (Q8 > 0):
+        if Q8 > 0:
             Q7 = R7
         else:
             Q7 = S7
-        if (Q8 < 0):
+        if Q8 < 0:
             Q9 = S9
         else:
             Q9 = R9
@@ -4394,23 +4417,20 @@ def CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz):
         J4out = Q7
         J5out = Q8
         J6out = Q9
-        return (J1out, J2out, J3out, J4out, J5out, J6out)
+        return J1out, J2out, J3out, J4out, J5out, J6out
 
 
-##############################################################################################################################################################
 ### MOVE DEFS ################################################################################################################################## MOVE DEFS ###
-##############################################################################################################################################################
-
 def MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz,
             Track, Code):
     global commandCalc
     global blockEncPosMove
     blockEncPosMove = 1
-    CalcRevKin(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz)
+    calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz)
     MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, DECdur, DECspd, Track, Code)
     blockEncPosMove = 0
     if Code == 2 or Code == 3:
-        return (commandCalc)
+        return commandCalc
 
 
 def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, DECdur, DECspd, Track, Code):
@@ -4446,59 +4466,53 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
     # almStatusLab.config(text="AXIS LIMIT", bg = "red")
     # almStatusLab2.config(text="AXIS LIMIT", bg = "red")
     # tab1.runTrue = 0
-    if (J1newAng < J1NegAngLim or J1newAng > J1PosAngLim):
+    if J1newAng < J1NegAngLim or J1newAng > J1PosAngLim:
         almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J1 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
-    elif (J2newAng < J2NegAngLim or J2newAng > J2PosAngLim):
+    elif J2newAng < J2NegAngLim or J2newAng > J2PosAngLim:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J2 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
-    elif (J3newAng < J3NegAngLim or J3newAng > J3PosAngLim):
+    elif J3newAng < J3NegAngLim or J3newAng > J3PosAngLim:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J3 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
-    elif (J4newAng < J4NegAngLim or J4newAng > J4PosAngLim):
+    elif J4newAng < J4NegAngLim or J4newAng > J4PosAngLim:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J4 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
-    elif (J5newAng < J5NegAngLim or J5newAng > J5PosAngLim):
+    elif J5newAng < J5NegAngLim or J5newAng > J5PosAngLim:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J5 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
-    elif (J6newAng < J6NegAngLim or J6newAng > J6PosAngLim):
+    elif J6newAng < J6NegAngLim or J6newAng > J6PosAngLim:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J6 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
         pickle.dump(value, open("ErrorLog", "wb"))
         tab1.runTrue = 0
     else:
         ##J1 calc##
-        if (float(J1newAng) >= float(J1AngCur)):
+        if float(J1newAng) >= float(J1AngCur):
             # calc pos dir output
-            if (J1motdir == "0"):
+            if J1motdir == "0":
                 J1drivedir = "1"
             else:
                 J1drivedir = "0"
@@ -4509,7 +4523,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J1StepCur = J1StepCur + J1steps  # Invert
                 J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
             J1steps = str(J1steps)
-        elif (float(J1newAng) < float(J1AngCur)):
+        elif float(J1newAng) < float(J1AngCur):
             J1dir = J1motdir
             J1calcAng = float(J1AngCur) - float(J1newAng)
             J1steps = int(J1calcAng / J1DegPerStep)
@@ -4518,9 +4532,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
             J1steps = str(J1steps)
             ##J2 calc##
-        if (float(J2newAng) >= float(J2AngCur)):
+        if float(J2newAng) >= float(J2AngCur):
             # calc pos dir output
-            if (J2motdir == "0"):
+            if J2motdir == "0":
                 J2drivedir = "1"
             else:
                 J2drivedir = "0"
@@ -4531,7 +4545,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J2StepCur = J2StepCur + J2steps  # Invert
                 J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
             J2steps = str(J2steps)
-        elif (float(J2newAng) < float(J2AngCur)):
+        elif float(J2newAng) < float(J2AngCur):
             J2dir = J2motdir
             J2calcAng = float(J2AngCur) - float(J2newAng)
             J2steps = int(J2calcAng / J2DegPerStep)
@@ -4540,9 +4554,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
             J2steps = str(J2steps)
             ##J3 calc##
-        if (float(J3newAng) >= float(J3AngCur)):
+        if float(J3newAng) >= float(J3AngCur):
             # calc pos dir output
-            if (J3motdir == "0"):
+            if J3motdir == "0":
                 J3drivedir = "1"
             else:
                 J3drivedir = "0"
@@ -4553,7 +4567,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J3StepCur = J3StepCur + J3steps  # Invert
                 J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
             J3steps = str(J3steps)
-        elif (float(J3newAng) < float(J3AngCur)):
+        elif float(J3newAng) < float(J3AngCur):
             J3dir = J3motdir
             J3calcAng = float(J3AngCur) - float(J3newAng)
             J3steps = int(J3calcAng / J3DegPerStep)
@@ -4562,9 +4576,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
             J3steps = str(J3steps)
             ##J4 calc##
-        if (float(J4newAng) >= float(J4AngCur)):
+        if float(J4newAng) >= float(J4AngCur):
             # calc pos dir output
-            if (J4motdir == "0"):
+            if J4motdir == "0":
                 J4drivedir = "1"
             else:
                 J4drivedir = "0"
@@ -4575,7 +4589,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J4StepCur = J4StepCur + J4steps  # Invert
                 J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
             J4steps = str(J4steps)
-        elif (float(J4newAng) < float(J4AngCur)):
+        elif float(J4newAng) < float(J4AngCur):
             J4dir = J4motdir
             J4calcAng = float(J4AngCur) - float(J4newAng)
             J4steps = int(J4calcAng / J4DegPerStep)
@@ -4584,9 +4598,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
             J4steps = str(J4steps)
             ##J5 calc##
-        if (float(J5newAng) >= float(J5AngCur)):
+        if float(J5newAng) >= float(J5AngCur):
             # calc pos dir output
-            if (J5motdir == "0"):
+            if J5motdir == "0":
                 J5drivedir = "1"
             else:
                 J5drivedir = "0"
@@ -4597,7 +4611,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J5StepCur = J5StepCur + J5steps  # Invert
                 J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
             J5steps = str(J5steps)
-        elif (float(J5newAng) < float(J5AngCur)):
+        elif float(J5newAng) < float(J5AngCur):
             J5dir = J5motdir
             J5calcAng = float(J5AngCur) - float(J5newAng)
             J5steps = int(J5calcAng / J5DegPerStep)
@@ -4606,9 +4620,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
             J5steps = str(J5steps)
             ##J6 calc##
-        if (float(J6newAng) >= float(J6AngCur)):
+        if float(J6newAng) >= float(J6AngCur):
             # calc pos dir output
-            if (J6motdir == "0"):
+            if J6motdir == "0":
                 J6drivedir = "1"
             else:
                 J6drivedir = "0"
@@ -4619,7 +4633,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J6StepCur = J6StepCur + J6steps  # Invert
                 J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
             J6steps = str(J6steps)
-        elif (float(J6newAng) < float(J6AngCur)):
+        elif float(J6newAng) < float(J6AngCur):
             J6dir = J6motdir
             J6calcAng = float(J6AngCur) - float(J6newAng)
             J6steps = int(J6calcAng / J6DegPerStep)
@@ -4628,7 +4642,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
             J6steps = str(J6steps)
         ##Track calc##
-        if (TrackNew >= TrackcurPos):
+        if TrackNew >= TrackcurPos:
             TRdir = "1"
             TRdist = TrackNew - TrackcurPos
             TRstep = str(int((TrackStepLim / TrackLength) * TRdist))
@@ -4643,14 +4657,14 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         if Code == 0:
-            ser.write(commandCalc.encode())
-            ser.flushInput()
+            serial_teensy.write(commandCalc.encode())
+            serial_teensy.flushInput()
             time.sleep(.01)
             # ser.read()
-            RobotCode = str(ser.readline())
+            RobotCode = str(serial_teensy.readline())
             Pcode = RobotCode[2:4]
-            if (Pcode == "01"):
-                applyRobotCal(RobotCode)
+            if Pcode == "01":
+                apply_robot_calibration(RobotCode)
         J1curAngEntryField.delete(0, 'end')
         J1curAngEntryField.insert(0, str(J1AngCur))
         J2curAngEntryField.delete(0, 'end')
@@ -4663,29 +4677,25 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
         J5curAngEntryField.insert(0, str(J5AngCur))
         J6curAngEntryField.delete(0, 'end')
         J6curAngEntryField.insert(0, str(J6AngCur))
-        CalcFwdKin()
+        calculate_direct_kinematics_problem()
         DisplaySteps()
-        savePosData()
+        save_position_data()
         if Code == 2 or Code == 3:
-            return (commandCalc)
+            return commandCalc
 
 
-##############################################################################################################################################################
 ### CALIBRATION & SAVE DEFS ###################################################################################################### CALIBRATION & SAVE DEFS ###
-##############################################################################################################################################################
-
-
-def getRobotPosition():
+def get_robot_position():
     commandCalc = "GP" + "U" + str(J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(
         J4StepCur) + "Y" + str(J5StepCur) + "Z" + str(J6StepCur) + "\n"
-    ser.write(commandCalc.encode())
-    RobotCode = str(ser.readline())
+    serial_teensy.write(commandCalc.encode())
+    RobotCode = str(serial_teensy.readline())
     Pcode = RobotCode[2:4]
-    if (Pcode == "01"):
-        applyRobotCal(RobotCode)
+    if Pcode == "01":
+        apply_robot_calibration(RobotCode)
 
 
-def applyRobotCal(RobotCode):
+def apply_robot_calibration(RobotCode):
     global J1NegAngLim
     global J1PosAngLim
     global J1StepLim
@@ -4722,7 +4732,6 @@ def applyRobotCal(RobotCode):
     global J6DegPerStep
     global J6StepCur
     global J6AngCur
-    Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
     J1fault = RobotCode[4:5]
     J2fault = RobotCode[5:6]
     J3fault = RobotCode[6:7]
@@ -4735,69 +4744,69 @@ def applyRobotCal(RobotCode):
     J4index = RobotCode.find('D')
     J5index = RobotCode.find('E')
     J6index = RobotCode.find('F')
-    if (J1OpenLoopStat.get() == 0):
-        if (J1fault == "1"):
+    if J1OpenLoopStat.get() == 0:
+        if J1fault == "1":
             almStatusLab.config(text="J1 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J1 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J1 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 COLLISION OR OUT OF CALIBRATION")
             J1StepCur = int(RobotCode[J1index + 1:J2index])
             J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
             J1curAngEntryField.delete(0, 'end')
             J1curAngEntryField.insert(0, str(J1AngCur))
-            stopProg()
-    if (J2OpenLoopStat.get() == 0):
-        if (J2fault == "1"):
+            stop_program()
+    if J2OpenLoopStat.get() == 0:
+        if J2fault == "1":
             almStatusLab.config(text="J2 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J2 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J2 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 COLLISION OR OUT OF CALIBRATION")
             J2StepCur = int(RobotCode[J2index + 1:J3index])
             J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
             J2curAngEntryField.delete(0, 'end')
             J2curAngEntryField.insert(0, str(J2AngCur))
-            stopProg()
-    if (J3OpenLoopStat.get() == 0):
-        if (J3fault == "1"):
+            stop_program()
+    if J3OpenLoopStat.get() == 0:
+        if J3fault == "1":
             almStatusLab.config(text="J3 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J3 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J3 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 COLLISION OR OUT OF CALIBRATION")
             J3StepCur = int(RobotCode[J3index + 1:J4index])
             J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
             J3curAngEntryField.delete(0, 'end')
             J3curAngEntryField.insert(0, str(J3AngCur))
-            stopProg()
-    if (J4OpenLoopStat.get() == 0):
-        if (J4fault == "1"):
+            stop_program()
+    if J4OpenLoopStat.get() == 0:
+        if J4fault == "1":
             almStatusLab.config(text="J4 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J4 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J4 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 COLLISION OR OUT OF CALIBRATION")
             J4StepCur = int(RobotCode[J4index + 1:J5index])
             J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
             J4curAngEntryField.delete(0, 'end')
             J4curAngEntryField.insert(0, str(J4AngCur))
-            stopProg()
-    if (J5OpenLoopStat.get() == 0):
-        if (J5fault == "1"):
+            stop_program()
+    if J5OpenLoopStat.get() == 0:
+        if J5fault == "1":
             almStatusLab.config(text="J5 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J5 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J5 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 COLLISION OR OUT OF CALIBRATION")
             J5StepCur = int(RobotCode[J5index + 1:J6index])
             J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
             J5curAngEntryField.delete(0, 'end')
             J5curAngEntryField.insert(0, str(J5AngCur))
-            stopProg()
-    if (J6OpenLoopStat.get() == 0):
-        if (J6fault == "1"):
+            stop_program()
+    if J6OpenLoopStat.get() == 0:
+        if J6fault == "1":
             almStatusLab.config(text="J6 COLLISION OR OUT OF CALIBRATION", bg="red")
             almStatusLab2.config(text="J6 COLLISION OR OUT OF CALIBRATION", bg="red")
-            tab6.ElogView.insert(tk.END, Curtime + " - " + "J6 COLLISION OR OUT OF CALIBRATION")
+            tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 COLLISION OR OUT OF CALIBRATION")
             J6StepCur = int(RobotCode[J6index + 1:-5])
             J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
             J6curAngEntryField.delete(0, 'end')
             J6curAngEntryField.insert(0, str(J6AngCur))
-            stopProg()
-    CalcFwdKin()
+            stop_program()
+    calculate_direct_kinematics_problem()
     DisplaySteps()
-    savePosData()
+    save_position_data()
     value = tab6.ElogView.get(0, tk.END)
     pickle.dump(value, open("ErrorLog", "wb"))
 
@@ -4809,33 +4818,33 @@ def calRobotAll():
     speed = "50"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J1caldir == J1motdir):
+    if J1caldir == J1motdir:
         J1caldrive = "1"
     else:
         J1caldrive = "0"
-    if (J2caldir == J2motdir):
+    if J2caldir == J2motdir:
         J2caldrive = "1"
     else:
         J2caldrive = "0"
-    if (J3caldir == J3motdir):
+    if J3caldir == J3motdir:
         J3caldrive = "1"
     else:
         J3caldrive = "0"
-    if (J4caldir == J4motdir):
+    if J4caldir == J4motdir:
         J4caldrive = "1"
     else:
         J4caldrive = "0"
-    if (J5caldir == J5motdir):
+    if J5caldir == J5motdir:
         J5caldrive = "1"
     else:
         J5caldrive = "0"
-    if (J6caldir == J6motdir):
+    if J6caldir == J6motdir:
         J6caldrive = "1"
     else:
         J6caldrive = "0"
     command = "MJA" + J1caldrive + "500" + "B" + J2caldrive + "500" + "C" + J3caldrive + "500" + "D" + J4caldrive + "500" + "E" + J5caldrive + "500" + "F" + J6caldrive + "0" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4844,8 +4853,8 @@ def calRobotAll():
     speed = "50"
     calRobot(calaxis, speed)
     command = "MJA" + J1caldrive + "0" + "B" + J2caldrive + "0" + "C" + J3caldrive + "0" + "D" + J4caldrive + "0" + "E" + J5caldrive + "0" + "F" + J6caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     calaxis = "000001"
     speed = "8"
     time.sleep(1)
@@ -4863,13 +4872,13 @@ def calRobotJ1():
     speed = "20"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J1caldir == J1motdir):
+    if J1caldir == J1motdir:
         J1caldrive = "1"
     else:
         J1caldrive = "0"
     command = "MJA" + J1caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4883,13 +4892,13 @@ def calRobotJ2():
     speed = "40"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J2caldir == J2motdir):
+    if J2caldir == J2motdir:
         J2caldrive = "1"
     else:
         J2caldrive = "0"
     command = "MJB" + J2caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4903,13 +4912,13 @@ def calRobotJ3():
     speed = "40"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J3caldir == J3motdir):
+    if J3caldir == J3motdir:
         J3caldrive = "1"
     else:
         J3caldrive = "0"
     command = "MJC" + J3caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4923,13 +4932,13 @@ def calRobotJ4():
     speed = "40"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J4caldir == J4motdir):
+    if J4caldir == J4motdir:
         J4caldrive = "1"
     else:
         J4caldrive = "0"
     command = "MJD" + J4caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4943,13 +4952,13 @@ def calRobotJ5():
     speed = "40"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J5caldir == J5motdir):
+    if J5caldir == J5motdir:
         J5caldrive = "1"
     else:
         J5caldrive = "0"
     command = "MJE" + J5caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4963,13 +4972,13 @@ def calRobotJ6():
     speed = "40"
     calRobot(calaxis, speed)
     ### calc correct calibration direction
-    if (J6caldir == J6motdir):
+    if J6caldir == J6motdir:
         J6caldrive = "1"
     else:
         J6caldrive = "0"
     command = "MJF" + J6caldrive + "500" + "S15G10H10I10K10" + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
     calRobot(calaxis, speed)
@@ -4984,69 +4993,69 @@ def calRobot(calaxis, speed):
     J5axis = calaxis[4:-1]
     J6axis = calaxis[5:]
     ###
-    if (J1axis == "1"):
+    if J1axis == "1":
         J1step = str(J1StepLim)
     else:
         J1step = "0"
-    if (J2axis == "1"):
+    if J2axis == "1":
         J2step = str(J2StepLim)
     else:
         J2step = "0"
-    if (J3axis == "1"):
+    if J3axis == "1":
         J3step = str(J3StepLim)
     else:
         J3step = "0"
-    if (J4axis == "1"):
+    if J4axis == "1":
         J4step = str(J4StepLim)
     else:
         J4step = "0"
-    if (J5axis == "1"):
+    if J5axis == "1":
         J5step = str(J5StepLim)
     else:
         J5step = "0"
-    if (J6axis == "1"):
+    if J6axis == "1":
         J6step = str(J6StepLim)
     else:
         J6step = "0"
     ### calc correct calibration direction
-    if (J1caldir == J1motdir):
+    if J1caldir == J1motdir:
         J1caldrive = "0"
     else:
         J1caldrive = "1"
-    if (J2caldir == J2motdir):
+    if J2caldir == J2motdir:
         J2caldrive = "0"
     else:
         J2caldrive = "1"
-    if (J3caldir == J3motdir):
+    if J3caldir == J3motdir:
         J3caldrive = "0"
     else:
         J3caldrive = "1"
-    if (J4caldir == J4motdir):
+    if J4caldir == J4motdir:
         J4caldrive = "0"
     else:
         J4caldrive = "1"
-    if (J5caldir == J5motdir):
+    if J5caldir == J5motdir:
         J5caldrive = "0"
     else:
         J5caldrive = "1"
-    if (J6caldir == J6motdir):
+    if J6caldir == J6motdir:
         J6caldrive = "0"
     else:
         J6caldrive = "1"
     command = "LL" + "A" + J1caldrive + J1step + "B" + J2caldrive + J2step + "C" + J3caldrive + J3step + "D" + J4caldrive + J4step + "E" + J5caldrive + J5step + "F" + J6caldrive + J6step + "S" + str(
         speed) + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
-    calvalue = ser.read()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
+    calvalue = serial_teensy.read()
     global calStat
-    if (calvalue == b'P'):
+    if calvalue == b'P':
         calStat = 1
         calibration.delete(0, tk.END)
         ##J1##
         global J1StepCur
         global J1AngCur
-        if (J1axis == "1"):
-            if (J1caldir == "0"):
+        if J1axis == "1":
+            if J1caldir == "0":
                 J1StepCur = 0
                 J1AngCur = J1NegAngLim
             else:
@@ -5058,8 +5067,8 @@ def calRobot(calaxis, speed):
         ##J2##
         global J2StepCur
         global J2AngCur
-        if (J2axis == "1"):
-            if (J2caldir == "0"):
+        if J2axis == "1":
+            if J2caldir == "0":
                 J2StepCur = 0
                 J2AngCur = J2NegAngLim
             else:
@@ -5071,8 +5080,8 @@ def calRobot(calaxis, speed):
         ##J3##
         global J3StepCur
         global J3AngCur
-        if (J3axis == "1"):
-            if (J3caldir == "0"):
+        if J3axis == "1":
+            if J3caldir == "0":
                 J3StepCur = 0
                 J3AngCur = J3NegAngLim
             else:
@@ -5084,8 +5093,8 @@ def calRobot(calaxis, speed):
         ##J4##
         global J4StepCur
         global J4AngCur
-        if (J4axis == "1"):
-            if (J4caldir == "0"):
+        if J4axis == "1":
+            if J4caldir == "0":
                 J4StepCur = 0
                 J4AngCur = J4NegAngLim
             else:
@@ -5097,8 +5106,8 @@ def calRobot(calaxis, speed):
         ##J5##
         global J5StepCur
         global J5AngCur
-        if (J5axis == "1"):
-            if (J5caldir == "0"):
+        if J5axis == "1":
+            if J5caldir == "0":
                 J5StepCur = 0
                 J5AngCur = J5NegAngLim
             else:
@@ -5110,8 +5119,8 @@ def calRobot(calaxis, speed):
         ##J6##
         global J6StepCur
         global J6AngCur
-        if (J6axis == "1"):
-            if (J6caldir == "0"):
+        if J6axis == "1":
+            if J6caldir == "0":
                 J6StepCur = 0
                 J6AngCur = J6NegAngLim
             else:
@@ -5121,29 +5130,29 @@ def calRobot(calaxis, speed):
             J6curAngEntryField.insert(0, str(J6AngCur))
         ###########
         value = calibration.get(0, tk.END)
-        pickle.dump(value, open("ARbot.cal", "wb"))
+        pickle.dump(value, open("Robot_calibration_data.cal", "wb"))
         almStatusLab.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
         almStatusLab2.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
         DisplaySteps()
     else:
-        if (calvalue == b'F'):
+        if calvalue == b'F':
             calStat = 0
             almStatusLab.config(text="CALIBRATION FAILED", bg="red")
             almStatusLab2.config(text="CALIBRATION FAILED", bg="red")
         else:
             almStatusLab.config(text="NO CAL FEEDBACK FROM ARDUINO", bg="red")
             almStatusLab2.config(text="NO CAL FEEDBACK FROM ARDUINO", bg="red")
-    CalcFwdKin()
-    savePosData()
+    calculate_direct_kinematics_problem()
+    save_position_data()
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
 
 
 def calRobotMid():
-    Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
     calibration.delete(0, tk.END)
+
     ##J1##
     global J1StepCur
     global J1AngCur
@@ -5151,7 +5160,7 @@ def calRobotMid():
     J1AngCur = 0
     J1curAngEntryField.delete(0, 'end')
     J1curAngEntryField.insert(0, str(J1AngCur))
-    ###########
+
     ##J2## j2 goes to -90 given axis not centered
     global J2StepCur
     global J2AngCur
@@ -5159,7 +5168,7 @@ def calRobotMid():
     J2AngCur = -90
     J2curAngEntryField.delete(0, 'end')
     J2curAngEntryField.insert(0, str(J2AngCur))
-    ###########
+
     ##J3##  j3 goes to 1 given axis not centered
     global J3StepCur
     global J3AngCur
@@ -5167,7 +5176,7 @@ def calRobotMid():
     J3AngCur = 1.05
     J3curAngEntryField.delete(0, 'end')
     J3curAngEntryField.insert(0, str(J3AngCur))
-    ###########
+
     ##J4##
     global J4StepCur
     global J4AngCur
@@ -5175,7 +5184,7 @@ def calRobotMid():
     J4AngCur = 0
     J4curAngEntryField.delete(0, 'end')
     J4curAngEntryField.insert(0, str(J4AngCur))
-    ###########
+
     ##J5##
     global J5StepCur
     global J5AngCur
@@ -5200,22 +5209,24 @@ def calRobotMid():
     TrackcurPos = TrackLength / 2
     TrackcurEntryField.delete(0, 'end')
     TrackcurEntryField.insert(0, str(TrackcurPos))
-    ###########
+
     value = calibration.get(0, tk.END)
-    pickle.dump(value, open("ARbot.cal", "wb"))
+    with open("Robot_calibration_data.cal", "wb") as calibration_file:
+        pickle.dump(value, calibration_file)
+
     almStatusLab.config(text="CALIBRATED TO REST POSITION", bg="orange")
     almStatusLab2.config(text="CALIBRATED TO REST POSITION", bg="orange")
-    tab6.ElogView.insert(tk.END, Curtime + " - " + "CALIBRATED TO REST POSITION")
-    CalcFwdKin()
+    tab6.ElogView.insert(tk.END, get_current_time() + " - " + "CALIBRATED TO REST POSITION")
+    calculate_direct_kinematics_problem()
     DisplaySteps()
-    savePosData()
+    save_position_data()
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
 
 
-def savePosData():
+def save_position_data():
     calibration.delete(0, tk.END)
     calibration.insert(tk.END, J1StepCur)
     calibration.insert(tk.END, J1AngCur)
@@ -5316,12 +5327,13 @@ def savePosData():
     calibration.insert(tk.END, J4OpenLoopVal)
     calibration.insert(tk.END, J5OpenLoopVal)
     calibration.insert(tk.END, J6OpenLoopVal)
-    ###########
+
     value = calibration.get(0, tk.END)
-    pickle.dump(value, open("ARbot.cal", "wb"))
+    with open("Robot_calibration_data.cal", "wb") as calibration_file:
+        pickle.dump(value, calibration_file)
 
 
-def SaveAndApplyCalibration():
+def save_and_apply_calibration():
     global J1NegAngLim
     global J1PosAngLim
     global J1StepLim
@@ -5536,7 +5548,7 @@ def SaveAndApplyCalibration():
     J5OpenLoopVal = int(J5OpenLoopStat.get())
     J6OpenLoopVal = int(J6OpenLoopStat.get())
 
-    savePosData()
+    save_position_data()
 
 
 def DisplaySteps():
@@ -5673,13 +5685,13 @@ def exeFineCalPos():
             Track, Code)
     almStatusLab.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
     almStatusLab2.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
-    CalcFwdKin()
+    calculate_direct_kinematics_problem()
     DisplaySteps()
-    savePosData()
+    save_position_data()
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
-    ser.write(command.encode())
-    ser.flushInput()
+    serial_teensy.write(command.encode())
+    serial_teensy.flushInput()
 
 
 def CalTrackPos():
@@ -5687,7 +5699,7 @@ def CalTrackPos():
     TrackcurPos = 0
     TrackcurEntryField.delete(0, 'end')
     TrackcurEntryField.insert(0, str(TrackcurPos))
-    savePosData()
+    save_position_data()
 
 
 def monitorEnc():
@@ -5695,7 +5707,7 @@ def monitorEnc():
     global blockEncPosCal
     while True:
         if blockEncPosMove == 0 and blockEncPosCal == 0:
-            getRobotPosition()
+            get_robot_position()
         time.sleep(2)
 
     ###VISION DEFS###################################################################
@@ -5705,11 +5717,11 @@ def monitorEnc():
 
 def testvis():
     visprog = visoptions.get()
-    if (visprog[:] == "Openvision"):
+    if visprog[:] == "Openvision":
         openvision()
-    if (visprog[:] == "Roborealm 1.7.5"):
+    if visprog[:] == "Roborealm 1.7.5":
         roborealm175()
-    if (visprog[:] == "x,y,r"):
+    if visprog[:] == "x,y,r":
         xyr()
 
 
@@ -5718,11 +5730,11 @@ def openvision():
     global Ypos
     global VisEndYmm
     visfail = 1
-    while (visfail == 1):
+    while visfail == 1:
         value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        while (value == 0):
+        while value == 0:
             try:
                 with  open(VisFileLoc, "r") as file:
                     value = file.readlines()[-1]  # .decode()
@@ -5733,7 +5745,7 @@ def openvision():
         x = int(value[110:122])
         y = int(value[130:142])
         viscalc(x, y)
-        if (Ypos > VisEndYmm):
+        if Ypos > VisEndYmm:
             visfail = 1
             time.sleep(.1)
         else:
@@ -5762,11 +5774,11 @@ def roborealm175():
     global Ypos
     global VisEndYmm
     visfail = 1
-    while (visfail == 1):
+    while visfail == 1:
         value = 0
         almStatusLab.config(text="WAITING FOR CAMERA", bg="yellow")
         almStatusLab2.config(text="WAITING FOR CAMERA", bg="yellow")
-        while (value == 0):
+        while value == 0:
             try:
                 with  open(VisFileLoc, "r") as file:
                     value = file.readlines()[-1]  # .decode()
@@ -5778,7 +5790,7 @@ def roborealm175():
         x = float(value[:Index])
         y = float(value[Index + 1:])
         viscalc(x, y)
-        if (Ypos > VisEndYmm):
+        if Ypos > VisEndYmm:
             visfail = 1
             time.sleep(.1)
         else:
@@ -5807,11 +5819,11 @@ def xyr():
     global Ypos
     global VisEndYmm
     visfail = 1
-    while (visfail == 1):
+    while visfail == 1:
         value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
-        while (value == 0):
+        while value == 0:
             try:
                 with  open(VisFileLoc, "r") as file:
                     value = file.readlines()[-1]  # .decode()
@@ -5826,7 +5838,7 @@ def xyr():
         y = float(value2[:Index2])
         r = float(value2[Index2 + 1:])
         viscalc(x, y)
-        if (Ypos > VisEndYmm):
+        if Ypos > VisEndYmm:
             visfail = 1
             time.sleep(.1)
         else:
@@ -5874,7 +5886,7 @@ def viscalc(x, y):
     YMrange = float(VisEndYmm - VisOrigYmm)
     YMpos = float(YMrange * YPratio)
     Ypos = float(VisOrigYmm + YMpos)
-    return (Xpos, Ypos)
+    return Xpos, Ypos
 
 
 # TAB 1
@@ -6085,10 +6097,10 @@ storPosequalsLab.place(x=1117, y=561)
 ##########################################################################
 
 
-manInsBut = tk.Button(tab1, borderwidth=3, text="Insert", height=1, width=6, command=manInsItem)
+manInsBut = tk.Button(tab1, borderwidth=3, text="Insert", height=1, width=6, command=insert_line)
 manInsBut.place(x=1220, y=641)
 
-manRepBut = tk.Button(tab1, borderwidth=3, text="Replace", height=1, width=6, command=manReplItem)
+manRepBut = tk.Button(tab1, borderwidth=3, text="Replace", height=1, width=6, command=replace_line)
 manRepBut.place(x=1280, y=641)
 
 getSelBut = tk.Button(tab1, borderwidth=3, text="Get Selected", height=1, width=10, command=getSel)
@@ -6109,19 +6121,19 @@ teachReplaceBut = tk.Button(tab1, borderwidth=3, text="Modify Position", height=
                             command=teachReplaceSelected)
 teachReplaceBut.place(x=540, y=480)
 
-waitTimeBut = tk.Button(tab1, borderwidth=3, text="Wait Time (seconds)", height=1, width=20, command=waitTime)
+waitTimeBut = tk.Button(tab1, borderwidth=3, text="Wait Time (seconds)", height=1, width=20, command=wait_time)
 waitTimeBut.place(x=700, y=360)
 
-waitInputOnBut = tk.Button(tab1, borderwidth=3, text="Wait Input ON", height=1, width=20, command=waitInputOn)
+waitInputOnBut = tk.Button(tab1, borderwidth=3, text="Wait Input ON", height=1, width=20, command=wait_input_on)
 waitInputOnBut.place(x=700, y=400)
 
-waitInputOffBut = tk.Button(tab1, borderwidth=3, text="Wait Input OFF", height=1, width=20, command=waitInputOff)
+waitInputOffBut = tk.Button(tab1, borderwidth=3, text="Wait Input OFF", height=1, width=20, command=wait_input_off)
 waitInputOffBut.place(x=700, y=440)
 
-setOutputOnBut = tk.Button(tab1, borderwidth=3, text="Set Output On", height=1, width=20, command=setOutputOn)
+setOutputOnBut = tk.Button(tab1, borderwidth=3, text="Set Output On", height=1, width=20, command=set_output_on)
 setOutputOnBut.place(x=700, y=480)
 
-setOutputOffBut = tk.Button(tab1, borderwidth=3, text="Set Output OFF", height=1, width=20, command=setOutputOff)
+setOutputOffBut = tk.Button(tab1, borderwidth=3, text="Set Output OFF", height=1, width=20, command=set_output_off)
 setOutputOffBut.place(x=700, y=520)
 
 tabNumBut = tk.Button(tab1, borderwidth=3, text="Create Tab", height=1, width=14, command=tabNumber)
@@ -6164,13 +6176,13 @@ comPortBut2 = tk.Button(tab1,
                         command=set_arduino_port)
 comPortBut2.place(x=473, y=65)
 
-ProgBut = tk.Button(tab1, borderwidth=3, text="Load Program", height=0, width=12, command=loadProg)
+ProgBut = tk.Button(tab1, borderwidth=3, text="Load Program", height=0, width=12, command=load_program)
 ProgBut.place(x=202, y=42)
 
-deleteBut = tk.Button(tab1, borderwidth=3, text="Delete", height=1, width=20, command=delete_item)
+deleteBut = tk.Button(tab1, borderwidth=3, text="Delete", height=1, width=20, command=delete_line)
 deleteBut.place(x=540, y=520)
 
-runProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=runProg)
+runProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=run_program)
 playPhoto = tk.PhotoImage(file="img/play-icon.gif")
 runProgBut.config(image=playPhoto, width="60", height="60")
 runProgBut.place(x=20, y=80)
@@ -6180,15 +6192,15 @@ xboxPhoto = tk.PhotoImage(file="img/xbox.gif")
 xboxBut.config(image=xboxPhoto, width="60", height="43")
 xboxBut.place(x=1330, y=140)
 
-stopProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stopProg)
+stopProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stop_program)
 stopPhoto = tk.PhotoImage(file="img/stop-icon.gif")
 stopProgBut.config(image=stopPhoto, width="60", height="60")
 stopProgBut.place(x=200, y=80)
 
-fwdBut = tk.Button(tab1, borderwidth=3, text="FWD", height=3, width=4, command=stepFwd)
+fwdBut = tk.Button(tab1, borderwidth=3, text="FWD", height=3, width=4, command=step_forward)
 fwdBut.place(x=100, y=80)
 
-revBut = tk.Button(tab1, borderwidth=3, text="REV", height=3, width=4, command=stepRev)
+revBut = tk.Button(tab1, borderwidth=3, text="REV", height=3, width=4, command=step_back)
 revBut.place(x=150, y=80)
 
 RegNumBut = tk.Button(tab1, borderwidth=3, text="Register", height=1, width=20, command=insertRegister)
@@ -6318,8 +6330,8 @@ JogStepsCbut = tk.Checkbutton(tab1, text="Jog joints in steps", variable=JogStep
 JogStepsCbut.place(x=1230, y=15)
 
 CheckRobotPosbut = tk.Button(tab1, borderwidth=3, text="Check Robot Position", height=1, width=20,
-                             command=getRobotPosition)
-# CheckRobotPosbut.place(x=1230, y=45)
+                             command=get_robot_position)
+CheckRobotPosbut.place(x=1230, y=45)
 
 
 StorPosBut = tk.Button(tab1, borderwidth=3, text="Stored Position", height=1, width=20, command=storPos)
@@ -6706,7 +6718,7 @@ gotofineCalBut = tk.Button(tab2, bg="khaki2", text="Go To Fine Calibration Posit
 gotofineCalBut.place(x=170, y=120)
 
 saveCalBut = tk.Button(tab2, borderwidth=3, text="SAVE CALIBRATION DATA", height=1, width=26,
-                       command=SaveAndApplyCalibration)
+                       command=save_and_apply_calibration)
 saveCalBut.place(x=1150, y=630)
 
 CalJ1But = tk.Button(tab2, borderwidth=3, text="Calibrate J1 Only", height=1, width=20, command=calRobotJ1)
@@ -7655,7 +7667,7 @@ testvisBut = tk.Button(tab5, borderwidth=3, text="test", height=1, width=15, com
 testvisBut.place(x=500, y=190)
 
 saveCalBut = tk.Button(tab5, borderwidth=3, text="SAVE VISION DATA", height=1, width=26,
-                       command=SaveAndApplyCalibration)
+                       command=save_and_apply_calibration)
 saveCalBut.place(x=1150, y=630)
 
 #### 5 ENTRY FIELDS##########################################################
@@ -7757,13 +7769,9 @@ configfile.pack(side="left")
 scroll.config(command=configfile.yview)
 configfile.place(x=10, y=40)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
 ####TAB 10
 
 ### 10 LABELS#################################################################
-#############################################################################
 
 testSendLab = tk.Label(tab10, text="Test string to send to arduino")
 testSendLab.place(x=10, y=20)
@@ -7772,16 +7780,14 @@ testRecLab = tk.Label(tab10, text="Message echoed back from arduino")
 testRecLab.place(x=10, y=70)
 
 ### 10 BUTTONS################################################################
-#############################################################################
 
-testSendBut = tk.Button(tab10, borderwidth=3, text="SEND TO ARDUINO", height=1, width=20, command=TestString)
+testSendBut = tk.Button(tab10, borderwidth=3, text="SEND TO ARDUINO", height=1, width=20, command=send_test_string)
 testSendBut.place(x=10, y=120)
 
-testClearBut = tk.Button(tab10, borderwidth=3, text="CLEAR RECEIVED", height=1, width=20, command=ClearTestString)
+testClearBut = tk.Button(tab10, borderwidth=3, text="CLEAR RECEIVED", height=1, width=20, command=clear_test_string)
 testClearBut.place(x=180, y=120)
 
 #### 10 ENTRY FIELDS##########################################################
-#############################################################################
 
 testSendEntryField = tk.Entry(tab10, width=222)
 testSendEntryField.place(x=10, y=40)
@@ -7791,15 +7797,15 @@ testRecEntryField.place(x=10, y=90)
 
 # OPEN CAL FILE AND LOAD LIST
 
-calibration = tk.Listbox(tab2, width=20, height=60)
+calibration = tk.Listbox(tab2)
 # calibration.place(x=160,y=170)
 
 
 try:
-    Cal = pickle.load(open("ARbot.cal", "rb"))
+    Cal = pickle.load(open("Robot_calibration_data.cal", "rb"))
 except:
     Cal = "0"
-    pickle.dump(Cal, open("ARbot.cal", "wb"))
+    pickle.dump(Cal, open("Robot_calibration_data.cal", "wb"))
 for item in Cal:
     calibration.insert(tk.END, item)
 J1StepCur = calibration.get("0")
@@ -7917,7 +7923,7 @@ ACCdurField.insert(0, "15")
 ACCspeedField.insert(0, "10")
 DECdurField.insert(0, "20")
 DECspeedField.insert(0, "5")
-ProgEntryField.insert(0, (Prog))
+ProgEntryField.insert(0, Prog)
 SavePosEntryField.insert(0, "1")
 J1jogDegsEntryField.insert(0, "10")
 J2jogDegsEntryField.insert(0, "10")
@@ -8128,26 +8134,26 @@ VisPicXPEntryField.insert(0, str(VisEndXpix))
 VisPicXMEntryField.insert(0, str(VisEndXmm))
 VisPicYPEntryField.insert(0, str(VisEndYpix))
 VisPicYMEntryField.insert(0, str(VisEndYmm))
-if (J1OpenLoopVal == 1):
+if J1OpenLoopVal == 1:
     J1OpenLoopCbut.select()
-if (J2OpenLoopVal == 1):
+if J2OpenLoopVal == 1:
     J2OpenLoopCbut.select()
-if (J3OpenLoopVal == 1):
+if J3OpenLoopVal == 1:
     J3OpenLoopCbut.select()
-if (J4OpenLoopVal == 1):
+if J4OpenLoopVal == 1:
     J4OpenLoopCbut.select()
-if (J5OpenLoopVal == 1):
+if J5OpenLoopVal == 1:
     J5OpenLoopCbut.select()
-if (J6OpenLoopVal == 1):
+if J6OpenLoopVal == 1:
     J6OpenLoopCbut.select()
 
-SaveAndApplyCalibration()
+save_and_apply_calibration()
 DisplaySteps()
-CalcFwdKin()
+calculate_direct_kinematics_problem()
 set_teensy_port()
 set_arduino_port()
 
-loadProg()
+load_program()
 msg = "ANNIN ROBOTICS SOFTWARE AND MODELS ARE FREE:\n\
 \n\
 *for personal use.\n\
