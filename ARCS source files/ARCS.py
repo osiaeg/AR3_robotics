@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, IntVar, Scrollbar
+from tkinter import messagebox, IntVar
 from tkinter import ttk
 
 import numpy as np
@@ -87,7 +87,6 @@ J6OpenLoopStat: IntVar = tk.IntVar()
 global xboxUse
 
 # DEFINE TABS
-
 nb = ttk.Notebook(root, width=app_width, height=app_height)
 
 tab1 = ttk.Frame(nb)
@@ -112,8 +111,12 @@ nb.pack(pady=5, padx=5)
 
 
 def get_current_time() -> str:
-    time_format = "%Y-%m-%d  %H:%M:%S"
-    return datetime.datetime.now().strftime(time_format)
+    return datetime.datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+
+
+def write_log(error_data) -> None:
+    with open("ErrorLog", "wb") as err_file:
+        pickle.dump(error_data, err_file)
 
 
 # COMMUNICATION_DEFS
@@ -132,20 +135,14 @@ def set_teensy_port() -> None:
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
         tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
-
-        with open("ErrorLog", "wb") as f:
-            pickle.dump(value, f)
-
+        write_log(value)
         save_position_data()
     except serial.SerialException as e:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
         value = tab6.ElogView.get(0, tk.END)
-
-        with open("ErrorLog", "wb") as f:
-            pickle.dump(value, f)
-
+        write_log(value)
         save_position_data()
 
 
@@ -164,25 +161,18 @@ def set_arduino_port():
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
         tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
-
-        with open("ErrorLog", "wb") as f:
-            pickle.dump(value, f)
-
+        write_log(value)
         save_position_data()
     except serial.SerialException:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
         tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
         value = tab6.ElogView.get(0, tk.END)
-
-        with open("ErrorLog", "wb") as f:
-            pickle.dump(value, f)
-
+        write_log(value)
         save_position_data()
 
 
-### EXECUTION DEFS ######################################################################################################################### EXECUTION DEFS ###
-
+# EXECUTION_DEFS
 def run_program():
     def program_thread():
         global rowinproc
@@ -190,7 +180,8 @@ def run_program():
             curRow = tab1.progView.curselection()[0]
             if curRow == 0:
                 curRow = 1
-        except:
+        except Exception as e:
+            print(e)
             curRow = 1
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(curRow)
@@ -246,7 +237,8 @@ def step_forward():
         selRow = tab1.progView.curselection()[0]
         curRowEntryField.delete(0, 'end')
         curRowEntryField.insert(0, selRow)
-    except:
+    except Exception as e:
+        print(e)
         curRowEntryField.delete(0, 'end')
         curRowEntryField.insert(0, "---")
 
@@ -255,11 +247,15 @@ def step_back():
     exec_row()
     selRow = tab1.progView.curselection()[0]
     last = tab1.progView.index('end')
+
     for row in range(0, selRow):
         tab1.progView.itemconfig(row, {'fg': 'black'})
+
     tab1.progView.itemconfig(selRow, {'fg': 'red'})
+
     for row in range(selRow + 1, last):
         tab1.progView.itemconfig(row, {'fg': 'tomato2'})
+
     tab1.progView.selection_clear(0, tk.END)
     selRow -= 1
     tab1.progView.select_set(selRow)
@@ -268,7 +264,8 @@ def step_back():
         selRow = tab1.progView.curselection()[0]
         curRowEntryField.delete(0, 'end')
         curRowEntryField.insert(0, selRow)
-    except:
+    except Exception as e:
+        print(e)
         curRowEntryField.delete(0, 'end')
         curRowEntryField.insert(0, "---")
 
@@ -314,21 +311,21 @@ def exec_row():
     command = tab1.progView.get(data[0])
     cmdType = command[:6]
 
-    ##Call Program##
+    # Call Program
     if cmdType == "Call P":
         tab1.lastRow = tab1.progView.curselection()[0]
         tab1.lastProg = ProgEntryField.get()
-        programIndex = command.find("Program -")
-        progNum = str(command[programIndex + 10:])
+        program_index = command.find("Program -")
+        program_num = str(command[program_index + 10:])
         ProgEntryField.delete(0, 'end')
-        ProgEntryField.insert(0, progNum)
+        ProgEntryField.insert(0, program_num)
         load_program()
         time.sleep(.4)
         index = 0
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
 
-    ##Return Program##
+    # Return Program
     if cmdType == "Return":
         lastRow = tab1.lastRow
         lastProg = tab1.lastProg
@@ -340,7 +337,7 @@ def exec_row():
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(lastRow)
 
-    ##Servo Command##
+    # Servo Command
     if cmdType == "Servo ":
         servoIndex = command.find("number ")
         posIndex = command.find("position: ")
@@ -352,7 +349,7 @@ def exec_row():
         time.sleep(.2)
         serial_arduino.read()
 
-    ##If Input On Jump to Tab##
+    # If Input On Jump to Tab
     if cmdType == "If On ":
         inputIndex = command.find("Input-")
         tabIndex = command.find("Tab-")
@@ -369,7 +366,7 @@ def exec_row():
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
 
-    ##If Input Off Jump to Tab##
+    # If Input Off Jump to Tab
     if cmdType == "If Off":
         inputIndex = command.find("Input-")
         tabIndex = command.find("Tab-")
@@ -386,7 +383,7 @@ def exec_row():
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
 
-    ##Jump to Row##
+    # Jump to Row
     if cmdType == "Jump T":
         tabIndex = command.find("Tab-")
         tabNum = str(command[tabIndex + 4:])
@@ -394,7 +391,7 @@ def exec_row():
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(index)
 
-    ##Set Output ON Command##
+    # Set Output ON Command
     if cmdType == "Out On":
         outputIndex = command.find("Out On = ")
         outputNum = str(command[outputIndex + 9:])
@@ -404,7 +401,7 @@ def exec_row():
         time.sleep(.2)
         serial_arduino.read()
 
-    ##Set Output OFF Command##
+    # Set Output OFF Command
     if cmdType == "Out Of":
         outputIndex = command.find("Out Off = ")
         outputNum = str(command[outputIndex + 10:])
@@ -414,7 +411,7 @@ def exec_row():
         time.sleep(.2)
         serial_arduino.read()
 
-    ##Wait Input ON Command##
+    # Wait Input ON Command
     if cmdType == "Wait I":
         inputIndex = command.find("Wait Input On = ")
         inputNum = str(command[inputIndex + 16:])
@@ -424,7 +421,7 @@ def exec_row():
         time.sleep(.2)
         serial_arduino.read()
 
-    ##Wait Input OFF Command##
+    # Wait Input OFF Command
     if cmdType == "Wait O":
         inputIndex = command.find("Wait Off Input = ")
         inputNum = str(command[inputIndex + 17:])
@@ -434,7 +431,7 @@ def exec_row():
         time.sleep(.2)
         serial_arduino.read()
 
-    ##Wait Time Command##
+    # Wait Time Command
     if cmdType == "Wait T":
         timeIndex = command.find("Wait Time = ")
         timeSeconds = str(command[timeIndex + 12:])
@@ -443,7 +440,8 @@ def exec_row():
         serial_teensy.flushInput()
         time.sleep(.2)
         serial_teensy.read()
-    ##Set Register##
+
+    # Set Register
     if cmdType == "Regist":
         regNumIndex = command.find("Register ")
         regEqIndex = command.find(" = ")
@@ -462,7 +460,8 @@ def exec_row():
             regEqVal = str(command[regEqIndex + 3:])
         eval(regEntry).delete(0, 'end')
         eval(regEntry).insert(0, regEqVal)
-    ##Set Stor Position##
+
+    # Set Stor Position
     if cmdType == "Store ":
         regNumIndex = command.find("Store Position ")
         regElIndex = command.find("Element")
@@ -483,10 +482,12 @@ def exec_row():
             regEqVal = str(command[regEqIndex + 3:])
         eval(regEntry).delete(0, 'end')
         eval(regEntry).insert(0, regEqVal)
-    ## Get Vision ##
+
+    # Get Vision
     if cmdType == "Get Vi":
         testvis()
-    ##If Register Jump to Row##
+
+    # If Register Jump to Row
     if cmdType == "If Reg":
         regIndex = command.find("If Register ")
         regEqIndex = command.find(" = ")
@@ -500,12 +501,14 @@ def exec_row():
             index = tab1.progView.get(0, "end").index("Tab Number " + tabNum)
             tab1.progView.selection_clear(0, tk.END)
             tab1.progView.select_set(index)
-            ##Calibrate Command##
+
+    # Calibrate Command
     if cmdType == "Calibr":
         calRobotAll()
         if calStat == 0:
             stop_program()
-    ##Move J Command##
+
+    # Move J Command
     if cmdType == "Move J":
         J1newIndex = command.find("X) ")
         J2newIndex = command.find("Y) ")
@@ -542,7 +545,8 @@ def exec_row():
         Code = 0
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
-    ##Offs J Command##
+
+    # Offs J Command
     if cmdType == "OFFS J":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] [")
@@ -588,7 +592,8 @@ def exec_row():
         Code = 0
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
-        ##Move SP Command##
+
+    # Move SP Command
     if cmdType == "Move S":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] [")
@@ -622,7 +627,8 @@ def exec_row():
         Code = 0
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
-    ##OFFS SP Command##
+
+    # OFFS SP Command
     if cmdType == "OFFS S":
         SPnewInex = command.find("[SP:")
         SPendInex = command.find("] offs")
@@ -659,7 +665,8 @@ def exec_row():
         Code = 0
         MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy,
                 TCRz, Track, Code)
-    ##Move L Command##
+
+    # Move L Command
     if cmdType == "Move L":
         blockEncPosCal = 1
         J1newIndex = command.find("X) ")
@@ -754,10 +761,10 @@ def exec_row():
         blockEncPosCal = 0
         get_robot_position()
 
-        ##Move A Command##
+    # Move A Command
     if cmdType == "Move A":
-        subCmd = command[:10]
-        if subCmd == "Move A Mid" or subCmd == "Move A End":
+        sub_cmd = command[:10]
+        if sub_cmd == "Move A Mid" or sub_cmd == "Move A End":
             almStatusLab.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
             almStatusLab2.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
         J1newIndex = command.find("X) ")
@@ -792,7 +799,7 @@ def exec_row():
         TCRx = 0
         TCRy = 0
         TCRz = 0
-        ##read next row for Mid position
+        # read next row for Mid position
         curRow = tab1.progView.curselection()[0]
         selRow = tab1.progView.curselection()[0]
         last = tab1.progView.index('end')
@@ -815,7 +822,7 @@ def exec_row():
         CXmid = float(command[J1newIndex + 3:J2newIndex - 1])
         CYmid = float(command[J2newIndex + 3:J3newIndex - 1])
         CZmid = float(command[J3newIndex + 3:J4newIndex - 1])
-        ##read next row for End position
+        # read next row for End position
         curRow = tab1.progView.curselection()[0]
         selRow = tab1.progView.curselection()[0]
         last = tab1.progView.index('end')
@@ -838,7 +845,7 @@ def exec_row():
         CXend = float(command[J1newIndex + 3:J2newIndex - 1])
         CYend = float(command[J2newIndex + 3:J3newIndex - 1])
         CZend = float(command[J3newIndex + 3:J4newIndex - 1])
-        ### FIND CENTER AND RADIUS OF CIRCLE
+        # FIND CENTER AND RADIUS OF CIRCLE
         A = np.array([CXbeg, CYbeg, CZbeg])
         B = np.array([CXmid, CYmid, CZmid])
         C = np.array([CXend, CYend, CZend])
@@ -855,7 +862,7 @@ def exec_row():
         Px = P[0]
         Py = P[1]
         Pz = P[2]
-        ###SHIFT POINTS TO ORIGIN
+        # SHIFT POINTS TO ORIGIN
         sCXbeg = CXbeg - Px
         sCYbeg = CYbeg - Py
         sCZbeg = CZbeg - Pz
@@ -865,24 +872,24 @@ def exec_row():
         sCXend = CXend - Px
         sCYend = CYend - Py
         sCZend = CZend - Pz
-        ###FIND CROSS PRODUCT
+        # FIND CROSS PRODUCT
         a_vec = np.array([sCXbeg, sCYbeg, sCZbeg]) / np.linalg.norm(np.array([sCXbeg, sCYbeg, sCZbeg]))
         b_vec = np.array([sCXend, sCYend, sCZend]) / np.linalg.norm(np.array([sCXend, sCYend, sCZend]))
         axis = np.cross(a_vec, b_vec)
         ab_angle = np.arccos(np.dot(a_vec, b_vec))
         ab_angle_Deg = math.degrees(ab_angle)
-        ###FIND ANGLE & NUM WAYPOINTS
+        # FIND ANGLE & NUM WAYPOINTS
         numWayPts = int(ab_angle_Deg / 1)
         # numWayPts = 100
         theta_Deg = (ab_angle_Deg / (numWayPts + 1))
-        ###DEFINE START VECTOR
+        # DEFINE START VECTOR
         v = [sCXbeg, sCYbeg, sCZbeg]
-        ###MOVE TO BEGINING OF ARC
+        # MOVE TO BEGINING OF ARC
         Code = 0
         MoveXYZ(CXbeg, CYbeg, CZbeg, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx,
                 TCRy, TCRz, Track, Code)
 
-        ## SPEEDS
+        # SPEEDS
         # ACCpts = numWayPts * (int(ACCdur)/100)
         # ACCpctInc = 100 / int(ACCpts)
         # numDECpts = (numWayPts * (int(DECdur)/100))
@@ -896,14 +903,14 @@ def exec_row():
         lACCdur = "1"
         lDECdur = "1"
 
-        ##GENERATE WAYPOINTS CMD
+        # GENERATE WAYPOINTS CMD
         WayPtsCMD = "ML" + str(numWayPts)
         serial_teensy.write(WayPtsCMD.encode())
         serial_teensy.flushInput()
 
-        ###LOOP FIND ALL POINTS IN ARC
+        # LOOP FIND ALL POINTS IN ARC
         cur_deg = theta_Deg
-        ###START LOOP
+        # START LOOP
         for i in range(numWayPts + 1):
             theta = math.radians(cur_deg)
             new_pt = np.dot(rotation_matrix(axis, theta), v)
@@ -938,11 +945,11 @@ def exec_row():
         serial_teensy.read()
         get_robot_position()
 
-        ##Move C Command##
+    # Move C Command
     if cmdType == "Move C":
         blockEncPosCal = 1
-        subCmd = command[:10]
-        if subCmd == "Move C Sta" or subCmd == "Move C Pla":
+        sub_cmd = command[:10]
+        if sub_cmd == "Move C Sta" or sub_cmd == "Move C Pla":
             almStatusLab.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
             almStatusLab2.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
         J1newIndex = command.find("X) ")
@@ -977,7 +984,7 @@ def exec_row():
         TCRx = 0
         TCRy = 0
         TCRz = 0
-        ##read next row for Mid position
+        # read next row for Mid position
         curRow = tab1.progView.curselection()[0]
         selRow = tab1.progView.curselection()[0]
         last = tab1.progView.index('end')
@@ -1000,7 +1007,7 @@ def exec_row():
         CXmid = float(command[J1newIndex + 3:J2newIndex - 1])
         CYmid = float(command[J2newIndex + 3:J3newIndex - 1])
         CZmid = float(command[J3newIndex + 3:J4newIndex - 1])
-        ##read next row for End position
+        # read next row for End position
         curRow = tab1.progView.curselection()[0]
         selRow = tab1.progView.curselection()[0]
         last = tab1.progView.index('end')
@@ -1023,32 +1030,32 @@ def exec_row():
         CXend = float(command[J1newIndex + 3:J2newIndex - 1])
         CYend = float(command[J2newIndex + 3:J3newIndex - 1])
         CZend = float(command[J3newIndex + 3:J4newIndex - 1])
-        ###SHIFT POINTS TO ORIGIN
+        # SHIFT POINTS TO ORIGIN
         sCXmid = CXmid - CXbeg
         sCYmid = CYmid - CYbeg
         sCZmid = CZmid - CZbeg
         sCXend = CXend - CXbeg
         sCYend = CYend - CYbeg
         sCZend = CZend - CZbeg
-        ###FIND CROSS PRODUCT
+        # FIND CROSS PRODUCT
         a_vec = np.array([sCXmid, sCYmid, sCZmid]) / np.linalg.norm(np.array([sCXmid, sCYmid, sCZmid]))
         b_vec = np.array([sCXend, sCYend, sCZend]) / np.linalg.norm(np.array([sCXend, sCYend, sCZend]))
         axis = np.cross(a_vec, b_vec)
         ab_angle = np.arccos(np.dot(a_vec, b_vec))
         ab_angle_Deg = math.degrees(ab_angle)
-        ###FIND ANGLE & NUM WAYPOINTS
+        # FIND ANGLE & NUM WAYPOINTS
         # numWayPts = 220
         numWayPts = 120
         theta_Deg = (360 / numWayPts)
-        ###DEFINE START VECTOR
+        # DEFINE START VECTOR
         v = [sCXmid, sCYmid, sCZmid]
-        ###MOVE TO BEGINING OF ARC
+        # MOVE TO BEGINING OF ARC
         Code = 0
         MoveXYZ(CXmid, CYmid, CZmid, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx,
                 TCRy, TCRz, Track, Code)
 
         # removed 9-12-19
-        ## SPEEDS
+        # SPEEDS
         ACCpts = numWayPts * (int(ACCdur) / 100)
         ACCpctInc = 100 / int(ACCpts)
         numDECpts = (numWayPts * (int(DECdur) / 100))
@@ -1062,15 +1069,15 @@ def exec_row():
         lACCdur = "1"
         lDECdur = "1"
 
-        ##GENERATE WAYPOINTS CMD
+        # GENERATE WAYPOINTS CMD
         WayPtsCMD = "MC" + str(numWayPts)
         serial_teensy.write(WayPtsCMD.encode())
         serial_teensy.flushInput()
         time.sleep(.02)
 
-        ###LOOP FIND ALL POINTS IN ARC
+        # LOOP FIND ALL POINTS IN ARC
         cur_deg = theta_Deg
-        ###START LOOP
+        # START LOOP
         i = 0
         for i in range(numWayPts + 1):
             theta = math.radians(cur_deg)
@@ -1125,260 +1132,6 @@ def rotation_matrix(axis, theta):
                      [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
 
 
-### BUTTON JOGGING DEFS ############################################################################################################## BUTTON JOGGING DEFS ###
-def xbox():
-    def xbox_thread():
-        from inputs import get_gamepad
-        global xboxUse
-        jogMode = 1
-        if xboxUse == 0:
-            xboxUse = 1
-            mainMode = 1
-            jogMode = 1
-            grip = 0
-            almStatusLab.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-            almStatusLab2.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-            xbcStatusLab.config(text='Xbox ON', bg="lightgreen")
-            ChgDis(2)
-        else:
-            xboxUse = 0
-            almStatusLab.config(text='XBOX CONTROLLER OFF', bg="salmon")
-            almStatusLab2.config(text='XBOX CONTROLLER OFF', bg="salmon")
-            xbcStatusLab.config(text='Xbox OFF', bg="salmon")
-        while xboxUse == 1:
-            try:
-                events = get_gamepad()
-                for event in events:
-                    ##DISTANCE
-                    if event.code == 'ABS_RZ' and event.state >= 100:
-                        ChgDis(0)
-                    elif event.code == 'ABS_Z' and event.state >= 100:
-                        ChgDis(1)
-                    ##SPEED
-                    elif event.code == 'BTN_TR' and event.state == 1:
-                        ChgSpd(0)
-                    elif event.code == 'BTN_TL' and event.state == 1:
-                        ChgSpd(1)
-                    ##JOINT MODE
-                    elif event.code == 'BTN_WEST' and event.state == 1:
-                        if mainMode != 1:
-                            mainMode = 1
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-                        else:
-                            jogMode += 1
-                        if jogMode == 2:
-                            almStatusLab.config(text='JOGGING JOINTS 3 & 4', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING JOINTS 3 & 4', bg="lightgreen")
-                        elif jogMode == 3:
-                            almStatusLab.config(text='JOGGING JOINTS 5 & 6', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING JOINTS 5 & 6', bg="lightgreen")
-                        elif jogMode == 4:
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING JOINTS 1 & 2', bg="lightgreen")
-                    ##JOINT JOG
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
-                        J1jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
-                        J1jogPos()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
-                        J2jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
-                        J2jogPos()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2:
-                        J3jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2:
-                        J3jogPos()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2:
-                        J4jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2:
-                        J4jogPos()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 3:
-                        J5jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 3:
-                        J5jogPos()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 3:
-                        J6jogNeg()
-                    elif mainMode == 1 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 3:
-                        J6jogPos()
-                    ##CARTESIAN DIR MODE
-                    elif event.code == 'BTN_SOUTH' and event.state == 1:
-                        if mainMode != 2:
-                            mainMode = 2
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING X & Y AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING X & Y AXIS', bg="lightgreen")
-                        else:
-                            jogMode += 1
-                        if jogMode == 2:
-                            almStatusLab.config(text='JOGGING Z AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING Z AXIS', bg="lightgreen")
-                        elif jogMode == 3:
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING X & Y AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING X & Y AXIS', bg="lightgreen")
-                    ##CARTESIAN DIR JOG
-                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
-                        XjogNeg()
-                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
-                        XjogPos()
-                    elif mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
-                        YjogNeg()
-                    elif mainMode == 2 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
-                        YjogPos()
-                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 2:
-                        ZjogNeg()
-                    elif mainMode == 2 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 2:
-                        ZjogPos()
-                    ##CARTESIAN ORIENTATION MODE
-                    elif event.code == 'BTN_EAST' and event.state == 1:
-                        if mainMode != 3:
-                            mainMode = 3
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
-                        else:
-                            jogMode += 1
-                        if jogMode == 2:
-                            almStatusLab.config(text='JOGGING Rz AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING Rz AXIS', bg="lightgreen")
-                        elif jogMode == 3:
-                            jogMode = 1
-                            almStatusLab.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
-                            almStatusLab2.config(text='JOGGING Rx & Ry AXIS', bg="lightgreen")
-                    ##CARTESIAN ORIENTATION JOG
-                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 1:
-                        RxjogNeg()
-                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 1:
-                        RxjogPos()
-                    elif mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == 1 and jogMode == 1:
-                        RyjogNeg()
-                    elif mainMode == 3 and event.code == 'ABS_HAT0Y' and event.state == -1 and jogMode == 1:
-                        RyjogPos()
-                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == 1 and jogMode == 2:
-                        RzjogNeg()
-                    elif mainMode == 3 and event.code == 'ABS_HAT0X' and event.state == -1 and jogMode == 2:
-                        RzjogPos()
-                    ##TRACK MODE
-                    elif event.code == 'BTN_START' and event.state == 1:
-                        mainMode = 4
-                        almStatusLab.config(text='JOGGING TRACK', bg="lightgreen")
-                        almStatusLab2.config(text='JOGGING TRACK', bg="lightgreen")
-                    ##TRACK JOG
-                    elif mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == 1:
-                        TrackjogPos()
-                    elif mainMode == 4 and event.code == 'ABS_HAT0X' and event.state == -1:
-                        TrackjogNeg()
-                    ##TEACH POS
-                    elif event.code == 'BTN_NORTH' and event.state == 1:
-                        teachInsertBelSelected()
-                    ##GRIPPER
-                    elif event.code == 'BTN_SELECT' and event.state == 1:
-                        if grip == 0:
-                            grip = 1
-                            outputNum = DO1offEntryField.get()
-                            command = "OFX" + outputNum + "\n"
-                            serial_arduino.write(command.encode())
-                            serial_arduino.flushInput()
-                            time.sleep(.2)
-                            serial_arduino.read()
-                        else:
-                            grip = 0
-                            outputNum = DO1onEntryField.get()
-                            command = "ONX" + outputNum + "\n"
-                            serial_arduino.write(command.encode())
-                            serial_arduino.flushInput()
-                            time.sleep(.2)
-                            serial_arduino.read()
-                            time.sleep(.1)
-            except:
-                almStatusLab.config(text='XBOX CONTROLLER NOT RESPONDING', bg="red")
-                almStatusLab2.config(text='XBOX CONTROLLER NOT RESPONDING', bg="red")
-                tab6.ElogView.insert(tk.END, get_current_time() + " - " + "XBOX CONTROLLER NOT RESPONDING")
-                value = tab6.ElogView.get(0, tk.END)
-                pickle.dump(value, open("ErrorLog", "wb"))
-
-    t = threading.Thread(target=xbox_thread)
-    t.start()
-
-
-def ChgDis(val):
-    curSpd = int(J1jogDegsEntryField.get())
-    if curSpd >= 100 and val == 0:
-        curSpd = 100
-    elif curSpd < 5 and val == 0:
-        curSpd += 1
-    elif val == 0:
-        curSpd += 5
-    if curSpd <= 1 and val == 1:
-        curSpd = 1
-    elif curSpd <= 5 and val == 1:
-        curSpd -= 1
-    elif val == 1:
-        curSpd -= 5
-    elif val == 2:
-        curSpd = 5
-    J1jogDegsEntryField.delete(0, 'end')
-    J2jogDegsEntryField.delete(0, 'end')
-    J3jogDegsEntryField.delete(0, 'end')
-    J4jogDegsEntryField.delete(0, 'end')
-    J5jogDegsEntryField.delete(0, 'end')
-    J6jogDegsEntryField.delete(0, 'end')
-    XjogEntryField.delete(0, 'end')
-    YjogEntryField.delete(0, 'end')
-    ZjogEntryField.delete(0, 'end')
-    RxjogEntryField.delete(0, 'end')
-    RyjogEntryField.delete(0, 'end')
-    RzjogEntryField.delete(0, 'end')
-    TXjogEntryField.delete(0, 'end')
-    TYjogEntryField.delete(0, 'end')
-    TZjogEntryField.delete(0, 'end')
-    TRxjogEntryField.delete(0, 'end')
-    TRyjogEntryField.delete(0, 'end')
-    TRzjogEntryField.delete(0, 'end')
-    J1jogDegsEntryField.insert(0, str(curSpd))
-    J2jogDegsEntryField.insert(0, str(curSpd))
-    J3jogDegsEntryField.insert(0, str(curSpd))
-    J4jogDegsEntryField.insert(0, str(curSpd))
-    J5jogDegsEntryField.insert(0, str(curSpd))
-    J6jogDegsEntryField.insert(0, str(curSpd))
-    XjogEntryField.insert(0, str(curSpd))
-    YjogEntryField.insert(0, str(curSpd))
-    ZjogEntryField.insert(0, str(curSpd))
-    RxjogEntryField.insert(0, str(curSpd))
-    RyjogEntryField.insert(0, str(curSpd))
-    RzjogEntryField.insert(0, str(curSpd))
-    TXjogEntryField.insert(0, str(curSpd))
-    TYjogEntryField.insert(0, str(curSpd))
-    TZjogEntryField.insert(0, str(curSpd))
-    TRxjogEntryField.insert(0, str(curSpd))
-    TRyjogEntryField.insert(0, str(curSpd))
-    TRzjogEntryField.insert(0, str(curSpd))
-    time.sleep(.3)
-
-
-def ChgSpd(val):
-    curSpd = int(speedEntryField.get())
-    if curSpd >= 100 and val == 0:
-        curSpd = 100
-    elif curSpd < 5 and val == 0:
-        curSpd += 1
-    elif val == 0:
-        curSpd += 5
-    if curSpd <= 1 and val == 1:
-        curSpd = 1
-    elif curSpd <= 5 and val == 1:
-        curSpd -= 1
-    elif val == 1:
-        curSpd -= 5
-    elif val == 2:
-        curSpd = 5
-    speedEntryField.delete(0, 'end')
-    speedEntryField.insert(0, str(curSpd))
-
-
 def J1jogNeg():
     global JogStepsStat
     global J1StepCur
@@ -1426,10 +1179,10 @@ def J1jogNeg():
     else:
         almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J1 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1485,10 +1238,10 @@ def J1jogPos():
     else:
         almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J1 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1539,10 +1292,10 @@ def J2jogNeg():
     else:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J2 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1598,10 +1351,10 @@ def J2jogPos():
     else:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J2 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1652,10 +1405,10 @@ def J3jogNeg():
     else:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J3 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1711,10 +1464,10 @@ def J3jogPos():
     else:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J3 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1765,10 +1518,10 @@ def J4jogNeg():
     else:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J4 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1824,10 +1577,10 @@ def J4jogPos():
     else:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J4 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1878,10 +1631,10 @@ def J5jogNeg():
     else:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J5 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1937,10 +1690,10 @@ def J5jogPos():
     else:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J5 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -1991,10 +1744,10 @@ def J6jogNeg():
     else:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J6 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -2050,10 +1803,10 @@ def J6jogPos():
     else:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "J6 AXIS LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
+
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
     DisplaySteps()
 
 
@@ -2423,10 +2176,9 @@ def TrackjogNeg():
     else:
         almStatusLab.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
         almStatusLab2.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "TRACK NEG TRAVEL LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "TRACK NEG TRAVEL LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
 
 
 def TrackjogPos():
@@ -2459,10 +2211,9 @@ def TrackjogPos():
     else:
         almStatusLab.config(text="TRACK POS TRAVEL LIMIT", bg="red")
         almStatusLab2.config(text="TRACK POS TRAVEL LIMIT", bg="red")
-        Curtime = datetime.datetime.now().strftime("%B %d %Y - %I:%M%p")
-        tab6.ElogView.insert(tk.END, Curtime + " - " + "TRACK POS TRAVEL LIMIT")
+        tab6.ElogView.insert(tk.END, get_current_time() + " - " + "TRACK POS TRAVEL LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
 
 
 def TXjogNeg():
@@ -2778,7 +2529,6 @@ def TRzjogPos():
 
 
 # TEACH_DEFS
-
 def teachInsertBelSelected():
     global XcurPos
     global YcurPos
@@ -2971,12 +2721,10 @@ def teachFineCal():
     tab6.ElogView.insert(tk.END, get_current_time() + " - " + "NEW FINE CALIBRATION POSITION TAUGHT")
 
     value = tab6.ElogView.get(0, tk.END)
-    with open("ErrorLog", "wb") as error_file:
-        pickle.dump(value, error_file)
+    write_log(value)
 
 
 # PROGRAM_FUNCTION_DEFS
-
 def delete_line():
     selRow = tab1.progView.curselection()[0]
     selection = tab1.progView.curselection()
@@ -3699,12 +3447,16 @@ def calculate_direct_kinematics_problem():
     B22 = math.sin(math.radians(H18)) * math.cos(math.radians(H17))
     B23 = -math.sin(math.radians(H18))
     B24 = 0
-    C21 = -math.sin(math.radians(H18)) * math.cos(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(math.radians(H17)) * math.sin(math.radians(H16))
-    C22 = math.cos(math.radians(H18)) * math.cos(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(math.radians(H17)) * math.sin(math.radians(H16))
+    C21 = -math.sin(math.radians(H18)) * math.cos(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(
+        math.radians(H17)) * math.sin(math.radians(H16))
+    C22 = math.cos(math.radians(H18)) * math.cos(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(
+        math.radians(H17)) * math.sin(math.radians(H16))
     C23 = math.cos(math.radians(H17)) * math.sin(math.radians(H16))
     C24 = 0
-    D21 = math.sin(math.radians(H18)) * math.sin(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(math.radians(H17)) * math.cos(math.radians(H16))
-    D22 = -math.cos(math.radians(H18)) * math.sin(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(math.radians(H17)) * math.cos(math.radians(H16))
+    D21 = math.sin(math.radians(H18)) * math.sin(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(
+        math.radians(H17)) * math.cos(math.radians(H16))
+    D22 = -math.cos(math.radians(H18)) * math.sin(math.radians(H16)) + math.sin(math.radians(H18)) * math.sin(
+        math.radians(H17)) * math.cos(math.radians(H16))
     D23 = math.cos(math.radians(H17)) * math.cos(math.radians(H16))
     D24 = 0
     E21 = H13
@@ -4028,7 +3780,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
             O8 = .0001
         if O9 == 0:
             O9 = .0001
-            # quadrant
+        # quadrant
         if O4 > 0 and O5 > 0:
             V9 = 1
         elif O4 > 0 and O5 < 0:
@@ -4037,7 +3789,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
             V9 = 3
         elif O4 < 0 and O5 > 0:
             V9 = 4
-        ## DH TABLE
+        # DH TABLE
         D13 = math.radians(DHr1)
         D14 = math.radians(DHr2)
         D15 = math.radians(DHr3)
@@ -4218,7 +3970,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y69 = (X57 * Y60) + (Y57 * Y61) + (Z57 * Y62) + (AA57 * Y63)
         Z69 = (X57 * Z60) + (Y57 * Z61) + (Z57 * Z62) + (AA57 * Z63)
         AA69 = (X57 * AA60) + (Y57 * AA61) + (Z57 * AA62) + (AA57 * AA63)
-        ## CALCULATE J1 ANGLE
+        # CALCULATE J1 ANGLE
         O13 = math.atan(AA67 / AA66)
         if V9 == 1:
             P13 = math.degrees(O13)
@@ -4228,7 +3980,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
             P13 = -180 + math.degrees(O13)
         if V9 == 4:
             P13 = 180 + math.degrees(O13)
-        ## CALCULATE J2 ANGLE	FWD
+        # CALCULATE J2 ANGLE	FWD
 
         O16 = math.sqrt(((abs(AA67)) ** 2) + ((abs(AA66)) ** 2))
         O17 = AA68 - E13
@@ -4471,42 +4223,42 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
         almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     elif J2newAng < J2NegAngLim or J2newAng > J2PosAngLim:
         almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     elif J3newAng < J3NegAngLim or J3newAng > J3PosAngLim:
         almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     elif J4newAng < J4NegAngLim or J4newAng > J4PosAngLim:
         almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     elif J5newAng < J5NegAngLim or J5newAng > J5PosAngLim:
         almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     elif J6newAng < J6NegAngLim or J6newAng > J6PosAngLim:
         almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
         almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
         value = tab6.ElogView.get(0, tk.END)
-        pickle.dump(value, open("ErrorLog", "wb"))
+        write_log(value)
         tab1.runTrue = 0
     else:
         ##J1 calc##
@@ -4808,7 +4560,7 @@ def apply_robot_calibration(RobotCode):
     DisplaySteps()
     save_position_data()
     value = tab6.ElogView.get(0, tk.END)
-    pickle.dump(value, open("ErrorLog", "wb"))
+    write_log(value)
 
 
 def calRobotAll():
@@ -4817,7 +4569,7 @@ def calRobotAll():
     calaxis = "111110"
     speed = "50"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J1caldir == J1motdir:
         J1caldrive = "1"
     else:
@@ -5710,11 +5462,8 @@ def monitorEnc():
             get_robot_position()
         time.sleep(2)
 
-    ###VISION DEFS###################################################################
 
-
-#################################################################################
-
+# VISION DEFS
 def testvis():
     visprog = visoptions.get()
     if visprog[:] == "Openvision":
@@ -5736,9 +5485,10 @@ def openvision():
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
         while value == 0:
             try:
-                with  open(VisFileLoc, "r") as file:
-                    value = file.readlines()[-1]  # .decode()
-            except:
+                with open(VisFileLoc, "r") as f:
+                    value = f.readlines()[-1]  # .decode()
+            except Exception as e:
+                print(e)
                 value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -5780,9 +5530,10 @@ def roborealm175():
         almStatusLab2.config(text="WAITING FOR CAMERA", bg="yellow")
         while value == 0:
             try:
-                with  open(VisFileLoc, "r") as file:
-                    value = file.readlines()[-1]  # .decode()
-            except:
+                with open(VisFileLoc, "r") as f:
+                    value = f.readlines()[-1]  # .decode()
+            except Exception as e:
+                print(e)
                 value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -5891,15 +5642,14 @@ def viscalc(x, y):
 
 # TAB 1
 # LABELS
-
 curRowLab = tk.Label(tab1, text="Current Row  = ")
 curRowLab.place(x=220, y=150)
 
 almStatusLab = tk.Label(tab1, text="SYSTEM READY - NO ACTIVE ALARMS", bg="cornflowerblue")
 almStatusLab.place(x=10, y=10)
 
-xbcStatusLab = tk.Label(tab1, text="Xbox OFF", bg="salmon")
-xbcStatusLab.place(x=1335, y=200)
+# xbcStatusLab = tk.Label(tab1, text="Xbox OFF", bg="salmon")
+# xbcStatusLab.place(x=1335, y=200)
 
 runStatusLab = tk.Label(tab1, text="PROGRAM STOPPED", bg="red")
 runStatusLab.place(x=20, y=150)
@@ -6093,9 +5843,7 @@ storPosEqLab.place(x=1077, y=547)
 storPosequalsLab = tk.Label(tab1, text="=")
 storPosequalsLab.place(x=1117, y=561)
 
-###BUTTONS################################################################
-##########################################################################
-
+# BUTTONS
 
 manInsBut = tk.Button(tab1, borderwidth=3, text="Insert", height=1, width=6, command=insert_line)
 manInsBut.place(x=1220, y=641)
@@ -6187,10 +5935,10 @@ playPhoto = tk.PhotoImage(file="img/play-icon.gif")
 runProgBut.config(image=playPhoto, width="60", height="60")
 runProgBut.place(x=20, y=80)
 
-xboxBut = tk.Button(tab1, borderwidth=3, height=43, width=60, command=xbox)
-xboxPhoto = tk.PhotoImage(file="img/xbox.gif")
-xboxBut.config(image=xboxPhoto, width="60", height="43")
-xboxBut.place(x=1330, y=140)
+# xboxBut = tk.Button(tab1, borderwidth=3, height=43, width=60, command=xbox)
+# xboxPhoto = tk.PhotoImage(file="img/xbox.gif")
+# xboxBut.config(image=xboxPhoto, width="60", height="43")
+# xboxBut.place(x=1330, y=140)
 
 stopProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stop_program)
 stopPhoto = tk.PhotoImage(file="img/stop-icon.gif")
@@ -6333,7 +6081,6 @@ CheckRobotPosbut = tk.Button(tab1, borderwidth=3, text="Check Robot Position", h
                              command=get_robot_position)
 CheckRobotPosbut.place(x=1230, y=45)
 
-
 StorPosBut = tk.Button(tab1, borderwidth=3, text="Stored Position", height=1, width=20, command=storPos)
 StorPosBut.place(x=920, y=560)
 
@@ -6347,13 +6094,13 @@ curRowEntryField.place(x=310, y=150)
 manEntryField = tk.Entry(tab1, width=95)
 manEntryField.place(x=630, y=645)
 
-ProgEntryField = tk.Entry(tab1, width=20)
+ProgEntryField = tk.Entry(tab1, width=20, justify=tk.CENTER)
 ProgEntryField.place(x=70, y=45)
 
-comPortEntryField = tk.Entry(tab1, width=2)
+comPortEntryField = tk.Entry(tab1, width=2, justify=tk.CENTER)
 comPortEntryField.place(x=450, y=40)
 
-com2PortEntryField = tk.Entry(tab1, width=2)
+com2PortEntryField = tk.Entry(tab1, width=2, justify=tk.CENTER)
 com2PortEntryField.place(x=450, y=65)
 
 speedEntryField = tk.Entry(tab1, width=3)
@@ -6562,14 +6309,8 @@ TRyjogEntryField.place(x=1020, y=285)
 TRzjogEntryField = tk.Entry(tab1, width=5)
 TRzjogEntryField.place(x=1110, y=285)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 2
-
-
-### 2 LABELS#################################################################
-#############################################################################
+# TAB 2
+# 2 LABELS
 
 almStatusLab2 = tk.Label(tab2, text="SYSTEM READY - NO ACTIVE ALARMS", bg="cornflowerblue")
 almStatusLab2.place(x=10, y=20)
@@ -6696,8 +6437,6 @@ MotDirLab = tk.Label(tab2, text="Motor Direction Output (default = 000000)")
 MotDirLab.place(x=70, y=420)
 
 ### 2 BUTTONS################################################################
-#############################################################################
-
 
 manCalBut = tk.Button(tab2, bg="lightskyblue3", text="Auto Calibrate", height=1, width=20, command=calRobotAll)
 manCalBut.place(x=10, y=60)
@@ -6940,14 +6679,8 @@ CalDirEntryField.place(x=10, y=390)
 MotDirEntryField = tk.Entry(tab2, width=6)
 MotDirEntryField.place(x=10, y=420)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 3
-
-
-### 3 LABELS#################################################################
-#############################################################################
+# TAB 3
+# 3 LABELS
 
 servo0onequalsLab = tk.Label(tab3, text="=")
 servo0onequalsLab.place(x=70, y=12)
@@ -7010,12 +6743,11 @@ Do6offequalsLab = tk.Label(tab3, text="=")
 Do6offequalsLab.place(x=210, y=452)
 
 inoutavailLab = tk.Label(tab3,
-                         text="NOTE: the following are available IO's on the Arduino Mega:       Inputs = 0-27  /  Outputs = 28-53  /  Servos = A0-A7")
+                         text="NOTE: the following are available IO's on the Arduino Mega:       Inputs = 0-27  /  "
+                              "Outputs = 28-53  /  Servos = A0-A7")
 inoutavailLab.place(x=10, y=645)
 
-### 3 BUTTONS################################################################
-#############################################################################
-
+# 3 BUTTONS
 servo0onBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=Servo0on)
 servo0onBut.place(x=10, y=10)
 
@@ -7077,8 +6809,6 @@ DO6offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, c
 DO6offBut.place(x=150, y=450)
 
 #### 3 ENTRY FIELDS##########################################################
-#############################################################################
-
 
 servo0onEntryField = tk.Entry(tab3, width=5)
 servo0onEntryField.place(x=90, y=15)
@@ -7140,14 +6870,8 @@ DO6onEntryField.place(x=230, y=415)
 DO6offEntryField = tk.Entry(tab3, width=5)
 DO6offEntryField.place(x=230, y=455)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 4
-
-
-### 4 LABELS#################################################################
-#############################################################################
+# TAB 4
+# 4 LABELS
 
 R1Lab = tk.Label(tab4, text="R1")
 R1Lab.place(x=70, y=30)
@@ -7263,12 +6987,9 @@ SP_E5_Lab.place(x=570, y=10)
 SP_E6_Lab = tk.Label(tab4, text="R")
 SP_E6_Lab.place(x=610, y=10)
 
-### 4 BUTTONS################################################################
-#############################################################################
+# 4 BUTTONS
 
-
-#### 4 ENTRY FIELDS##########################################################
-#############################################################################
+# 4 ENTRY FIELDS
 
 R1EntryField = tk.Entry(tab4, width=5)
 R1EntryField.place(x=30, y=30)
@@ -7607,14 +7328,8 @@ SP_15_E6_EntryField.place(x=600, y=450)
 SP_16_E6_EntryField = tk.Entry(tab4, width=5)
 SP_16_E6_EntryField.place(x=600, y=480)
 
-####################################################################################################################################################
-####################################################################################################################################################
-####################################################################################################################################################
-####TAB 5
-
-
-### 5 LABELS#################################################################
-#############################################################################
+# TAB 5
+# 5 LABELS
 
 VisFileLocLab = tk.Label(tab5, text="Vision File Location:")
 VisFileLocLab.place(x=10, y=12)
@@ -7671,7 +7386,6 @@ saveCalBut = tk.Button(tab5, borderwidth=3, text="SAVE VISION DATA", height=1, w
 saveCalBut.place(x=1150, y=630)
 
 #### 5 ENTRY FIELDS##########################################################
-#############################################################################
 
 VisFileLocEntryField = tk.Entry(tab5, width=70)
 VisFileLocEntryField.place(x=125, y=12)
@@ -7717,30 +7431,35 @@ VisYpixfindEntryField.place(x=720, y=130)
 
 # TAB 6
 
-Elogframe = tk.Frame(tab6)
-Elogframe.place(x=40, y=15)
-scrollbar = tk.Scrollbar(Elogframe)
+error_log_frame = tk.Frame(tab6)
+error_log_frame.place(x=40, y=15)
+scrollbar = tk.Scrollbar(error_log_frame)
 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-tab6.ElogView = tk.Listbox(Elogframe, width=150, height=40, yscrollcommand=scrollbar.set)
+tab6.ElogView = tk.Listbox(error_log_frame, width=150, height=40, yscrollcommand=scrollbar.set)
+
 try:
-    Elog = pickle.load(open("ErrorLog", "rb"))
-except:
-    Elog = ['##BEGINNING OF LOG##']
-    pickle.dump(Elog, open("ErrorLog", "wb"))
+    with open("ErrorLog", "rb") as f:
+        error_log = pickle.load(f)
+except FileNotFoundError:
+    error_log = ['##BEGINNING OF LOG##']
+    write_log(error_log)
+
 time.sleep(.2)
-for item in Elog:
+
+for item in error_log:
     tab6.ElogView.insert(tk.END, item)
+
 tab6.ElogView.pack()
 scrollbar.config(command=tab6.ElogView.yview)
 
 
-def clearLog():
+def clear_log():
     tab6.ElogView.delete(1, tk.END)
     value = tab6.ElogView.get(0, tk.END)
-    pickle.dump(value, open("ErrorLog", "wb"))
+    write_log(value)
 
 
-clearLogBut = tk.Button(tab6, borderwidth=3, text="Clear Log", height=1, width=26, command=clearLog)
+clearLogBut = tk.Button(tab6, borderwidth=3, text="Clear Log", height=1, width=26, command=clear_log)
 clearLogBut.place(x=1000, y=630)
 
 # TAB 7
@@ -7802,12 +7521,16 @@ calibration = tk.Listbox(tab2)
 
 
 try:
-    Cal = pickle.load(open("Robot_calibration_data.cal", "rb"))
-except:
-    Cal = "0"
-    pickle.dump(Cal, open("Robot_calibration_data.cal", "wb"))
-for item in Cal:
+    with open("Robot_calibration_data.cal", "rb") as calibration_file:
+        calibration_data = pickle.load(calibration_file)
+except FileNotFoundError:
+    calibration_data = "0"
+    with open("Robot_calibration_data.cal", "wb") as calibration_file:
+        pickle.dump(calibration_data, calibration_file)
+
+for item in calibration_data:
     calibration.insert(tk.END, item)
+
 J1StepCur = calibration.get("0")
 J1AngCur = calibration.get("1")
 J2StepCur = calibration.get("2")
