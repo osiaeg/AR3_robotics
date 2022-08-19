@@ -115,8 +115,18 @@ def get_current_time() -> str:
 
 
 def write_log(error_data) -> None:
-    with open("ErrorLog", "wb") as err_file:
-        pickle.dump(error_data, err_file)
+    with open("./program_files/error.log", "wb") as f:
+        pickle.dump(error_data, f)
+
+
+def write_calibration_data(cal_data) -> None:
+    with open("./program_files/Robot_calibration_data.cal", "wb") as f:
+        pickle.dump(cal_data, f)
+
+
+def save_program(program) -> None:
+    with open(ProgEntryField.get(), "wb") as f:
+        pickle.dump(program, f)
 
 
 # COMMUNICATION_DEFS
@@ -137,7 +147,7 @@ def set_teensy_port() -> None:
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
         save_position_data()
-    except serial.SerialException as e:
+    except serial.SerialException:
         almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
         tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
@@ -172,19 +182,19 @@ def set_arduino_port():
         save_position_data()
 
 
-# EXECUTION_DEFS
+# EXECUTION_DEF
 def run_program():
     def program_thread():
         global rowinproc
         try:
-            curRow = tab1.progView.curselection()[0]
-            if curRow == 0:
-                curRow = 1
+            current_row = tab1.progView.curselection()[0]
+            if current_row == 0:
+                current_row = 1
         except Exception as e:
             print(e)
-            curRow = 1
+            current_row = 1
             tab1.progView.selection_clear(0, tk.END)
-            tab1.progView.select_set(curRow)
+            tab1.progView.select_set(current_row)
         tab1.runTrue = 1
         while tab1.runTrue == 1:
             if tab1.runTrue == 0:
@@ -205,7 +215,7 @@ def run_program():
             tab1.progView.selection_clear(0, tk.END)
             selRow += 1
             tab1.progView.select_set(selRow)
-            curRow += 1
+            current_row += 1
             try:
                 selRow = tab1.progView.curselection()[0]
                 curRowEntryField.delete(0, 'end')
@@ -1183,7 +1193,7 @@ def J1jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J1jogPos():
@@ -1242,7 +1252,7 @@ def J1jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J2jogNeg():
@@ -1296,7 +1306,7 @@ def J2jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J2jogPos():
@@ -1355,7 +1365,7 @@ def J2jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J3jogNeg():
@@ -1409,7 +1419,7 @@ def J3jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J3jogPos():
@@ -1468,7 +1478,7 @@ def J3jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J4jogNeg():
@@ -1522,7 +1532,7 @@ def J4jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J4jogPos():
@@ -1581,7 +1591,7 @@ def J4jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J5jogNeg():
@@ -1635,7 +1645,7 @@ def J5jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J5jogPos():
@@ -1694,7 +1704,7 @@ def J5jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J6jogNeg():
@@ -1748,7 +1758,7 @@ def J6jogNeg():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def J6jogPos():
@@ -1807,7 +1817,7 @@ def J6jogPos():
 
         value = tab6.ElogView.get(0, tk.END)
         write_log(value)
-    DisplaySteps()
+    display_steps()
 
 
 def XjogNeg():
@@ -2565,7 +2575,7 @@ def teachInsertBelSelected():
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
         newPos = movetype + " [*]  T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
@@ -2573,7 +2583,7 @@ def teachInsertBelSelected():
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "OFFS SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "] offs [*SP:" + str(
             int(SavePosEntryField.get()) + 1) + "] "
@@ -2582,63 +2592,63 @@ def teachInsertBelSelected():
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move J":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move L":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move A Beg":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move A Mid":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move A End":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move C Center":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move C Start":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Move C Plane":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
         tab1.progView.insert(selRow, newPos)
         tab1.progView.selection_clear(0, tk.END)
         tab1.progView.select_set(selRow)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
     elif movetype == "Teach SP":
         SP = str(SavePosEntryField.get())
         SPE6 = "Store Position " + SP + " Element 6 = " + str(round(RzcurPos, 3))
@@ -2654,7 +2664,7 @@ def teachInsertBelSelected():
         SPE1 = "Store Position " + SP + " Element 1 = " + str(round(XcurPos, 3))
         tab1.progView.insert(selRow, SPE1)
         value = tab1.progView.get(0, tk.END)
-        pickle.dump(value, open(ProgEntryField.get(), "wb"))
+        save_program(value)
 
 
 def teachReplaceSelected():
@@ -2688,7 +2698,7 @@ def teachReplaceSelected():
     tab1.progView.delete(selection[0])
     tab1.progView.select_set(selRow)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
 def teachFineCal():
@@ -2731,8 +2741,7 @@ def delete_line():
     tab1.progView.delete(selection[0])
     tab1.progView.select_set(selRow)
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), 'wb') as program_file:
-        pickle.dump(value, program_file)
+    save_program(value)
 
 
 def insert_line():
@@ -2753,8 +2762,7 @@ def insert_line():
     tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
 
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), "wb") as f:
-        pickle.dump(value, f)
+    save_program(value)
 
 
 def replace_line():
@@ -2767,8 +2775,7 @@ def replace_line():
     tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
 
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), "wb") as f:
-        pickle.dump(value, f)
+    save_program(value)
 
 
 def wait_time():
@@ -2787,8 +2794,7 @@ def wait_time():
     tab1.progView.select_set(selRow)
 
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), "wb") as f:
-        pickle.dump(value, f)
+    save_program(value)
 
 
 def wait_input_on():
@@ -2807,8 +2813,7 @@ def wait_input_on():
     tab1.progView.select_set(selRow)
 
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), "wb") as f:
-        pickle.dump(value, f)
+    save_program(value)
 
 
 def wait_input_off():
@@ -2826,7 +2831,7 @@ def wait_input_off():
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
 def set_output_on():
@@ -2845,8 +2850,7 @@ def set_output_on():
     tab1.progView.select_set(selRow)
 
     value = tab1.progView.get(0, tk.END)
-    with open(ProgEntryField.get(), "wb") as f:
-        pickle.dump(value, f)
+    save_program(value)
 
 
 def set_output_off():
@@ -2864,7 +2868,7 @@ def set_output_off():
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
 def tabNumber():
@@ -2881,8 +2885,8 @@ def tabNumber():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
 def jumpTab():
@@ -2899,80 +2903,80 @@ def jumpTab():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
-def getvision():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    value = "Get Vision"
-    tab1.progView.insert(selRow, value)
+def get_vision():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
+    row = "Get Vision"
+    tab1.progView.insert(selected_row_num, row)
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    tab1.progView.select_set(selected_row_num)
+    save_program(value)
 
 
-def IfOnjumpTab():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def if_on_jump_to_tab():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
     inpNum = IfOnjumpInputTabEntryField.get()
     tabNum = IfOnjumpNumberTabEntryField.get()
-    tabjmp = "If On Jump - Input-" + inpNum + " Jump to Tab-" + tabNum
-    tab1.progView.insert(selRow, tabjmp)
+    row = f"If On Jump - Input-{inpNum} Jump to Tab-{tabNum}"
+    tab1.progView.insert(selected_row_num, row)
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
-def IfOffjumpTab():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def if_off_jump_to_tab():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
     inpNum = IfOffjumpInputTabEntryField.get()
     tabNum = IfOffjumpNumberTabEntryField.get()
-    tabjmp = "If Off Jump - Input-" + inpNum + " Jump to Tab-" + tabNum
-    tab1.progView.insert(selRow, tabjmp)
+    row = f"If Off Jump - Input-{inpNum} Jump to Tab-{tabNum}"
+    tab1.progView.insert(selected_row_num, row)
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
-def Servo():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def servo_command():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
     servoNum = servoNumEntryField.get()
     servoPos = servoPosEntryField.get()
-    servoins = "Servo number " + servoNum + " to position: " + servoPos
-    tab1.progView.insert(selRow, servoins)
+    row = f"Servo number {servoNum} to position: {servoPos}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
 def load_program():
@@ -2982,11 +2986,11 @@ def load_program():
     program_view_scrollbar = tk.Scrollbar(program_frame)
     program_view_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     tab1.progView = tk.Listbox(program_frame, width=84, height=31, yscrollcommand=program_view_scrollbar.set)
-    tab1.progView.bind('<<ListboxSelect>>', progViewselect)
+    tab1.progView.bind('<<ListboxSelect>>', change_selected_row_num)
 
-    program_file = ProgEntryField.get()
+    program_name = ProgEntryField.get()
     try:
-        with open(program_file, 'rb') as f:
+        with open(program_name, 'rb') as f:
             program = pickle.load(f)
 
         time.sleep(.2)
@@ -2999,39 +3003,41 @@ def load_program():
         save_position_data()
     except FileNotFoundError:
         messagebox.showwarning("Load program", "File not found")
+    except pickle.UnpicklingError:
+        messagebox.showwarning("Load program", "This file cannot be opened")
 
 
-def insertCallProg():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    newProg = changeProgEntryField.get()
-    changeProg = "Call Program - " + newProg
-    tab1.progView.insert(selRow, changeProg)
+def insert_call_program():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
+    new_program = changeProgEntryField.get()
+    row = "Call Program - " + new_program
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
-def insertReturn():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    value = "Return"
-    tab1.progView.insert(selRow, value)
+def insert_return():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+
+    row = "Return"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     value = tab1.progView.get(0, tk.END)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
 
 
 def IfRegjumpTab():
@@ -3050,8 +3056,8 @@ def IfRegjumpTab():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
 def insertRegister():
@@ -3069,8 +3075,8 @@ def insertRegister():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
 def storPos():
@@ -3089,15 +3095,16 @@ def storPos():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
     tabNumEntryField.delete(0, 'end')
+    save_program(value)
 
 
 def insCalibrate():
     try:
         selRow = tab1.progView.curselection()[0]
         selRow += 1
-    except:
+    except Exception as e:
+        print(e)
         last = tab1.progView.index('end')
         selRow = last
         tab1.progView.select_set(selRow)
@@ -3106,14 +3113,15 @@ def insCalibrate():
     value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selRow)
-    pickle.dump(value, open(ProgEntryField.get(), "wb"))
+    save_program(value)
     tabNumEntryField.delete(0, 'end')
 
 
-def progViewselect(e):
-    selRow = tab1.progView.curselection()[0]
-    curRowEntryField.delete(0, 'end')
-    curRowEntryField.insert(0, selRow)
+def change_selected_row_num(event):
+    selected_row = tab1.progView.curselection()
+    if selected_row:
+        curRowEntryField.delete(0, 'end')
+        curRowEntryField.insert(0, selected_row[0])
 
 
 def getSel():
@@ -4430,7 +4438,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
         J6curAngEntryField.delete(0, 'end')
         J6curAngEntryField.insert(0, str(J6AngCur))
         calculate_direct_kinematics_problem()
-        DisplaySteps()
+        display_steps()
         save_position_data()
         if Code == 2 or Code == 3:
             return commandCalc
@@ -4557,7 +4565,7 @@ def apply_robot_calibration(RobotCode):
             J6curAngEntryField.insert(0, str(J6AngCur))
             stop_program()
     calculate_direct_kinematics_problem()
-    DisplaySteps()
+    display_steps()
     save_position_data()
     value = tab6.ElogView.get(0, tk.END)
     write_log(value)
@@ -4882,10 +4890,10 @@ def calRobot(calaxis, speed):
             J6curAngEntryField.insert(0, str(J6AngCur))
         ###########
         value = calibration.get(0, tk.END)
-        pickle.dump(value, open("Robot_calibration_data.cal", "wb"))
+        write_calibration_data(value)
         almStatusLab.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
         almStatusLab2.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
-        DisplaySteps()
+        display_steps()
     else:
         if calvalue == b'F':
             calStat = 0
@@ -4963,14 +4971,13 @@ def calRobotMid():
     TrackcurEntryField.insert(0, str(TrackcurPos))
 
     value = calibration.get(0, tk.END)
-    with open("Robot_calibration_data.cal", "wb") as calibration_file:
-        pickle.dump(value, calibration_file)
+    write_calibration_data(value)
 
     almStatusLab.config(text="CALIBRATED TO REST POSITION", bg="orange")
     almStatusLab2.config(text="CALIBRATED TO REST POSITION", bg="orange")
     tab6.ElogView.insert(tk.END, get_current_time() + " - " + "CALIBRATED TO REST POSITION")
     calculate_direct_kinematics_problem()
-    DisplaySteps()
+    display_steps()
     save_position_data()
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
@@ -5081,8 +5088,7 @@ def save_position_data():
     calibration.insert(tk.END, J6OpenLoopVal)
 
     value = calibration.get(0, tk.END)
-    with open("Robot_calibration_data.cal", "wb") as calibration_file:
-        pickle.dump(value, calibration_file)
+    write_calibration_data(value)
 
 
 def save_and_apply_calibration():
@@ -5303,7 +5309,7 @@ def save_and_apply_calibration():
     save_position_data()
 
 
-def DisplaySteps():
+def display_steps():
     J1stepsLab['text'] = str(int(J1StepCur))
     J2stepsLab['text'] = str(int(J2StepCur))
     J3stepsLab['text'] = str(int(J3StepCur))
@@ -5438,7 +5444,7 @@ def exeFineCalPos():
     almStatusLab.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
     almStatusLab2.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
     calculate_direct_kinematics_problem()
-    DisplaySteps()
+    display_steps()
     save_position_data()
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
@@ -5890,22 +5896,22 @@ tabNumBut.place(x=1240, y=360)
 jumpTabBut = tk.Button(tab1, borderwidth=3, text="Jump to Tab", height=1, width=14, command=jumpTab)
 jumpTabBut.place(x=1240, y=400)
 
-getVisBut = tk.Button(tab1, borderwidth=3, text="Get Vision", height=1, width=14, command=getvision)
+getVisBut = tk.Button(tab1, borderwidth=3, text="Get Vision", height=1, width=14, command=get_vision)
 getVisBut.place(x=1240, y=440)
 
-IfOnjumpTabBut = tk.Button(tab1, borderwidth=3, text="If On Jump", height=1, width=20, command=IfOnjumpTab)
+IfOnjumpTabBut = tk.Button(tab1, borderwidth=3, text="If On Jump", height=1, width=20, command=if_on_jump_to_tab)
 IfOnjumpTabBut.place(x=920, y=360)
 
-IfOffjumpTabBut = tk.Button(tab1, borderwidth=3, text="If Off Jump", height=1, width=20, command=IfOffjumpTab)
+IfOffjumpTabBut = tk.Button(tab1, borderwidth=3, text="If Off Jump", height=1, width=20, command=if_off_jump_to_tab)
 IfOffjumpTabBut.place(x=920, y=400)
 
-servoBut = tk.Button(tab1, borderwidth=3, text="Servo", height=1, width=20, command=Servo)
+servoBut = tk.Button(tab1, borderwidth=3, text="Servo", height=1, width=20, command=servo_command)
 servoBut.place(x=920, y=440)
 
-callBut = tk.Button(tab1, borderwidth=3, text="Call Program", height=1, width=20, command=insertCallProg)
+callBut = tk.Button(tab1, borderwidth=3, text="Call Program", height=1, width=20, command=insert_call_program)
 callBut.place(x=540, y=560)
 
-returnBut = tk.Button(tab1, borderwidth=3, text="Return", height=1, width=20, command=insertReturn)
+returnBut = tk.Button(tab1, borderwidth=3, text="Return", height=1, width=20, command=insert_return)
 returnBut.place(x=540, y=600)
 
 comPortBut = tk.Button(tab1,
@@ -7481,7 +7487,7 @@ donateBut.place(x=1250, y=2)
 scroll = tk.Scrollbar(tab7)
 scroll.pack(side=tk.RIGHT, fill=tk.Y)
 configfile = tk.Text(tab7, wrap=tk.WORD, width=166, height=40, yscrollcommand=scroll.set)
-filename = 'information.txt'
+filename = 'program_files/information.txt'
 with open(filename, 'r', encoding='utf-8-sig') as file:
     configfile.insert(tk.INSERT, file.read())
 configfile.pack(side="left")
@@ -7521,12 +7527,11 @@ calibration = tk.Listbox(tab2)
 
 
 try:
-    with open("Robot_calibration_data.cal", "rb") as calibration_file:
+    with open("./program_files/Robot_calibration_data.cal", "rb") as calibration_file:
         calibration_data = pickle.load(calibration_file)
 except FileNotFoundError:
     calibration_data = "0"
-    with open("Robot_calibration_data.cal", "wb") as calibration_file:
-        pickle.dump(calibration_data, calibration_file)
+    write_calibration_data(calibration_data)
 
 for item in calibration_data:
     calibration.insert(tk.END, item)
@@ -7871,7 +7876,7 @@ if J6OpenLoopVal == 1:
     J6OpenLoopCbut.select()
 
 save_and_apply_calibration()
-DisplaySteps()
+display_steps()
 calculate_direct_kinematics_problem()
 set_teensy_port()
 set_arduino_port()
@@ -7905,7 +7910,8 @@ blockEncPosMove = 0
 monitor = threading.Thread(target=monitorEnc)
 monitor.start()
 
-tab1.mainloop()
+# tab1.mainloop()
+root.mainloop()
 
 # manEntryField.delete(0, 'end')
 # manEntryField.insert(0,value)
