@@ -12,6 +12,8 @@ import webbrowser
 import datetime
 import time
 
+from loguru import logger
+
 """ 
     ## ARCS ver 1.0 ###################################################################################################
     ARCS - Annin Robot Control Software
@@ -124,9 +126,22 @@ def write_calibration_data(cal_data) -> None:
         pickle.dump(cal_data, f)
 
 
-def save_program(program) -> None:
-    with open(ProgEntryField.get(), "wb") as f:
+def save_program() -> None:
+    program = tab1.progView.get(0, tk.END)
+    file_name = ProgEntryField.get()
+    with open(file_name, "wb") as f:
         pickle.dump(program, f)
+    logger.debug(f"File {file_name} is saved.")
+
+
+def get_selected_row_num():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0] + 1
+    else:
+        selected_row_num = tab1.progView.index('end')
+        tab1.progView.select_set(selected_row_num)
+    return selected_row_num
 
 
 # COMMUNICATION_DEFS
@@ -139,7 +154,7 @@ def set_teensy_port() -> None:
         global J4StepCur
         global J5StepCur
         global J6StepCur
-        port = "COM" + comPortEntryField.get()
+        port = f"COM{comPortEntryField.get()}"
         serial_teensy = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg='cornflowerblue')
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -165,7 +180,7 @@ def set_arduino_port():
         global J4StepCur
         global J5StepCur
         global J6StepCur
-        port = "COM" + com2PortEntryField.get()
+        port = f"COM{com2PortEntryField.get()}"
         serial_arduino = serial.Serial(port, baud)
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -282,11 +297,13 @@ def step_back():
 
 def stop_program():
     lastProg = ""
+    # tab1.runTrue = 0
+    # if tab1.runTrue == 0:
+    #     runStatusLab.config(text='PROGRAM STOPPED', bg="red")
+    # else:
+    #     runStatusLab.config(text='PROGRAM RUNNING', bg="green")
     tab1.runTrue = 0
-    if tab1.runTrue == 0:
-        runStatusLab.config(text='PROGRAM STOPPED', bg="red")
-    else:
-        runStatusLab.config(text='PROGRAM RUNNING', bg="green")
+    runStatusLab.config(text='PROGRAM STOPPED', bg="red")
 
 
 def exec_row():
@@ -353,7 +370,7 @@ def exec_row():
         posIndex = command.find("position: ")
         servoNum = str(command[servoIndex + 7:posIndex - 4])
         servoPos = str(command[posIndex + 10:])
-        command = "SV" + servoNum + "P" + servoPos + "\n"
+        command = f"SV{servoNum}P{servoPos}\n"
         serial_arduino.write(command.encode())
         serial_arduino.flushInput()
         time.sleep(.2)
@@ -365,7 +382,7 @@ def exec_row():
         tabIndex = command.find("Tab-")
         inputNum = str(command[inputIndex + 6:tabIndex - 9])
         tabNum = str(command[tabIndex + 4:])
-        command = "JFX" + inputNum + "T" + tabNum + "\n"
+        command = f"JFX{inputNum}T{tabNum}\n"
         serial_arduino.write(command.encode())
         serial_arduino.flushInput()
         time.sleep(.2)
@@ -445,11 +462,14 @@ def exec_row():
     if cmdType == "Wait T":
         timeIndex = command.find("Wait Time = ")
         timeSeconds = str(command[timeIndex + 12:])
-        command = "WTS" + timeSeconds + "\n"
+        command = f"WTS{timeSeconds}\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f'Write to teensy: {command}')
+
         serial_teensy.flushInput()
         time.sleep(.2)
-        serial_teensy.read()
+        logger.debug(f'Read from teensy: {serial_teensy.read()}')
 
     # Set Register
     if cmdType == "Regist":
@@ -514,7 +534,7 @@ def exec_row():
 
     # Calibrate Command
     if cmdType == "Calibr":
-        calRobotAll()
+        auto_calibrate()
         if calStat == 0:
             stop_program()
 
@@ -712,7 +732,7 @@ def exec_row():
         TCRy = 0
         TCRz = 0
         calculate_linear_distance(CX, CY, CZ)
-        CalcLinVect(CX, CY, CZ)
+        calculate_linear_vector(CX, CY, CZ)
         numWayPts = 10
         # numWayPts = int(LineDist/2)
         Xstart = XcurPos
@@ -736,9 +756,12 @@ def exec_row():
         lACCdur = "1"
         lDECdur = "1"
 
-        ##GENERATE WAYPOINTS CMD
-        WayPtsCMD = "ML" + str(numWayPts)
+        # GENERATE WAYPOINTS CMD
+        WayPtsCMD = f"ML{numWayPts}"
         serial_teensy.write(WayPtsCMD.encode())
+
+        logger.debug(f"Write to teensy: {WayPtsCMD}")
+
         serial_teensy.flushInput()
         time.sleep(.01)
         for i in range(numWayPts + 1):
@@ -763,8 +786,14 @@ def exec_row():
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
             serial_teensy.write(commandCalc.encode())
+
+            logger.debug(f"Write to teensy: {commandCalc}")
+
             serial_teensy.flushInput()
             RobotCode = str(serial_teensy.readline())
+
+            logger.debug(f"Read from teensy: {RobotCode}")
+
             Pcode = RobotCode[2:4]
             if Pcode == "01":
                 apply_robot_calibration(RobotCode)
@@ -914,8 +943,11 @@ def exec_row():
         lDECdur = "1"
 
         # GENERATE WAYPOINTS CMD
-        WayPtsCMD = "ML" + str(numWayPts)
+        WayPtsCMD = f"ML{numWayPts}"
         serial_teensy.write(WayPtsCMD.encode())
+
+        logger.debug(f"Write to teensy: {WayPtsCMD}")
+
         serial_teensy.flushInput()
 
         # LOOP FIND ALL POINTS IN ARC
@@ -948,6 +980,9 @@ def exec_row():
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
             serial_teensy.write(commandCalc.encode())
+
+            logger.debug(f"Write to teensy: {commandCalc}")
+
             serial_teensy.flushInput()
             time.sleep(.01)
             serial_teensy.read()
@@ -1082,6 +1117,9 @@ def exec_row():
         # GENERATE WAYPOINTS CMD
         WayPtsCMD = "MC" + str(numWayPts)
         serial_teensy.write(WayPtsCMD.encode())
+
+        logger.debug(f"Write to teensy: {WayPtsCMD}")
+
         serial_teensy.flushInput()
         time.sleep(.02)
 
@@ -1117,6 +1155,9 @@ def exec_row():
             MoveXYZ(lCX, lCY, lCZ, CRx, CRy, CRz, newSpeed, lACCdur, lACCspd, lDECdur, lDECspd, WC, TCX, TCY, TCZ, TCRx,
                     TCRy, TCRz, Track, Code)
             serial_teensy.write(commandCalc.encode())
+
+            logger.debug(f"Write to teensy: {commandCalc}")
+
             serial_teensy.flushInput()
             RobotCode = str(serial_teensy.readline())
             Pcode = RobotCode[2:4]
@@ -1179,6 +1220,9 @@ def J1jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1238,6 +1282,9 @@ def J1jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1292,6 +1339,9 @@ def J2jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1351,6 +1401,9 @@ def J2jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1405,6 +1458,9 @@ def J3jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1464,6 +1520,9 @@ def J3jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1518,6 +1577,9 @@ def J4jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1577,6 +1639,9 @@ def J4jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1631,6 +1696,9 @@ def J5jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1690,6 +1758,9 @@ def J5jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1744,6 +1815,9 @@ def J6jogNeg():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -1803,6 +1877,9 @@ def J6jogPos():
             J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         # ser.read()
@@ -2176,6 +2253,9 @@ def TrackjogNeg():
     if TrackcurPos - (float(TrackSteps) * (TrackLength / TrackStepLim)) >= 0:
         command = "MJT0" + TrackSteps + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         serial_teensy.read()
@@ -2211,6 +2291,9 @@ def TrackjogPos():
     if TrackcurPos + (float(TrackSteps) * (TrackLength / TrackStepLim)) <= TrackLength:
         command = "MJT1" + TrackSteps + "S" + Speed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "\n"
         serial_teensy.write(command.encode())
+
+        logger.debug(f"Write to teensy: {command}")
+
         serial_teensy.flushInput()
         time.sleep(.2)
         serial_teensy.read()
@@ -2548,13 +2631,7 @@ def teachInsertBelSelected():
     global RzcurPos
     global WC
     global TrackcurPos
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+    selected_row_num = get_selected_row_num()
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -2571,100 +2648,88 @@ def teachInsertBelSelected():
     if movetype == "OFFS J":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "]"
         newPos = movetype + " [*]  T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "OFFS SP":
         movetype = movetype + " [SP:" + str(SavePosEntryField.get()) + "] offs [*SP:" + str(
             int(SavePosEntryField.get()) + 1) + "] "
         newPos = movetype + " [*]  T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move J":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move L":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move A Beg":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move A Mid":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move A End":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move C Center":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move C Start":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Move C Plane":
         newPos = movetype + " [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite
-        tab1.progView.insert(selRow, newPos)
+        tab1.progView.insert(selected_row_num, newPos)
         tab1.progView.selection_clear(0, tk.END)
-        tab1.progView.select_set(selRow)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.select_set(selected_row_num)
+        save_program()
     elif movetype == "Teach SP":
         SP = str(SavePosEntryField.get())
         SPE6 = "Store Position " + SP + " Element 6 = " + str(round(RzcurPos, 3))
-        tab1.progView.insert(selRow, SPE6)
+        tab1.progView.insert(selected_row_num, SPE6)
         SPE5 = "Store Position " + SP + " Element 5 = " + str(round(RycurPos, 3))
-        tab1.progView.insert(selRow, SPE5)
+        tab1.progView.insert(selected_row_num, SPE5)
         SPE4 = "Store Position " + SP + " Element 4 = " + str(round(RxcurPos, 3))
-        tab1.progView.insert(selRow, SPE4)
+        tab1.progView.insert(selected_row_num, SPE4)
         SPE3 = "Store Position " + SP + " Element 3 = " + str(round(ZcurPos, 3))
-        tab1.progView.insert(selRow, SPE3)
+        tab1.progView.insert(selected_row_num, SPE3)
         SPE2 = "Store Position " + SP + " Element 2 = " + str(round(YcurPos, 3))
-        tab1.progView.insert(selRow, SPE2)
+        tab1.progView.insert(selected_row_num, SPE2)
         SPE1 = "Store Position " + SP + " Element 1 = " + str(round(XcurPos, 3))
-        tab1.progView.insert(selRow, SPE1)
-        value = tab1.progView.get(0, tk.END)
-        save_program(value)
+        tab1.progView.insert(selected_row_num, SPE1)
+        save_program()
 
 
 def teachReplaceSelected():
@@ -2697,8 +2762,7 @@ def teachReplaceSelected():
     selection = tab1.progView.curselection()
     tab1.progView.delete(selection[0])
     tab1.progView.select_set(selRow)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def teachFineCal():
@@ -2722,9 +2786,11 @@ def teachFineCal():
     J5AngWrite = str(round(RycurPos, 3))
     J6AngWrite = str(round(RzcurPos, 3))
     TrackPosWrite = str(round(TrackcurPos, 3))
-    newPos = "Move J [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
+    row = f"Move J [*]  X){J1AngWrite}  Y){J2AngWrite}  Z){J3AngWrite}  W){J4AngWrite} P){J5AngWrite} R){J6AngWrite} T){TrackPosWrite} Speed-{Speed} Ad-{ACCdur} As-{ACCspd} Dd-{DECdur} Ds-{DECspd} ${WC} "
+    # newPos = "Move J [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
     fineCalEntryField.delete(0, 'end')
-    fineCalEntryField.insert(0, str(newPos))
+    # fineCalEntryField.insert(0, str(newPos))
+    fineCalEntryField.insert(0, row)
     save_position_data()
     almStatusLab.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
     almStatusLab2.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
@@ -2734,35 +2800,28 @@ def teachFineCal():
     write_log(value)
 
 
-# PROGRAM_FUNCTION_DEFS
+# PROGRAM_FUNCTION_DEF
 def delete_line():
-    selRow = tab1.progView.curselection()[0]
-    selection = tab1.progView.curselection()
-    tab1.progView.delete(selection[0])
-    tab1.progView.select_set(selRow)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = selected_rows[0]
+        tab1.progView.delete(selected_row_num)
+        tab1.progView.select_set(selected_row_num)
+
+        save_program()
 
 
 def insert_line():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    tab1.progView.insert(selRow, manEntryField.get())
+    selected_row_num = get_selected_row_num()
+    tab1.progView.insert(selected_row_num, manEntryField.get())
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    selRow = tab1.progView.curselection()[0]
+    tab1.progView.select_set(selected_row_num)
+    selected_row_num = tab1.progView.curselection()[0]
     curRowEntryField.delete(0, 'end')
-    curRowEntryField.insert(0, selRow)
-    tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
+    curRowEntryField.insert(0, selected_row_num)
+    tab1.progView.itemconfig(selected_row_num, {'fg': 'darkgreen'})
 
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def replace_line():
@@ -2774,209 +2833,126 @@ def replace_line():
     tab1.progView.select_set(selRow)
     tab1.progView.itemconfig(selRow, {'fg': 'darkgreen'})
 
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def wait_time():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+    selected_row_num = get_selected_row_num()
     seconds = waitTimeEntryField.get()
-    newTime = "Wait Time = " + seconds
-    tab1.progView.insert(selRow, newTime)
+    row = f"Wait Time = {seconds}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
 
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def wait_input_on():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+    selected_row_num = get_selected_row_num()
     time_to_wait = waitInputEntryField.get()
-    newInput = "Wait Input On = " + time_to_wait
-    tab1.progView.insert(selRow, newInput)
+    row = f"Wait Input On = {time_to_wait}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
 
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def wait_input_off():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    input = waitInputOffEntryField.get()
-    newInput = "Wait Off Input = " + input
-    tab1.progView.insert(selRow, newInput)
+    selected_row_num = get_selected_row_num()
+    time_to_wait = waitInputOffEntryField.get()
+    row = f"Wait Off Input = {time_to_wait}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    tab1.progView.select_set(selected_row_num)
+    save_program()
 
 
 def set_output_on():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+    selected_row_num = get_selected_row_num()
     output = outputOnEntryField.get()
-    newOutput = "Out On = " + output
-    tab1.progView.insert(selRow, newOutput)
+    row = f"Out On = {output}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
 
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def set_output_off():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+    selected_row_num = get_selected_row_num()
     output = outputOffEntryField.get()
-    newOutput = "Out Off = " + output
-    tab1.progView.insert(selRow, newOutput)
+    row = f"Out Off = {output}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    tab1.progView.select_set(selected_row_num)
+    save_program()
 
 
-def tabNumber():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def tab_num():
+    selected_row_num = get_selected_row_num()
     tabNum = tabNumEntryField.get()
-    tabins = "Tab Number " + tabNum
-    tab1.progView.insert(selRow, tabins)
-    value = tab1.progView.get(0, tk.END)
+    row = f"Tab Number {tabNum}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
-def jumpTab():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def jump_to_tab():
+    selected_row_num = get_selected_row_num()
     tabNum = jumpTabEntryField.get()
-    tabjmp = "Jump Tab-" + tabNum
-    tab1.progView.insert(selRow, tabjmp)
-    value = tab1.progView.get(0, tk.END)
+    row = f"Jump Tab-{tabNum}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
 def get_vision():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     row = "Get Vision"
     tab1.progView.insert(selected_row_num, row)
-    value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
-    save_program(value)
+    save_program()
 
 
 def if_on_jump_to_tab():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     inpNum = IfOnjumpInputTabEntryField.get()
     tabNum = IfOnjumpNumberTabEntryField.get()
     row = f"If On Jump - Input-{inpNum} Jump to Tab-{tabNum}"
     tab1.progView.insert(selected_row_num, row)
-    value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
 def if_off_jump_to_tab():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     inpNum = IfOffjumpInputTabEntryField.get()
     tabNum = IfOffjumpNumberTabEntryField.get()
     row = f"If Off Jump - Input-{inpNum} Jump to Tab-{tabNum}"
+    tabNumEntryField.delete(0, 'end')
     tab1.progView.insert(selected_row_num, row)
-    value = tab1.progView.get(0, tk.END)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
-    tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
 def servo_command():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     servoNum = servoNumEntryField.get()
     servoPos = servoPosEntryField.get()
     row = f"Servo number {servoNum} to position: {servoPos}"
     tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def load_program():
@@ -3008,313 +2984,274 @@ def load_program():
 
 
 def insert_call_program():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     new_program = changeProgEntryField.get()
-    row = "Call Program - " + new_program
+    row = f"Call Program - {new_program}"
     tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
 def insert_return():
-    selected_rows = tab1.progView.curselection()
-    if selected_rows:
-        selected_row_num = selected_rows[0] + 1
-    else:
-        selected_row_num = tab1.progView.index('end')
-        tab1.progView.select_set(selected_row_num)
-
+    selected_row_num = get_selected_row_num()
     row = "Return"
     tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
     tab1.progView.select_set(selected_row_num)
-    value = tab1.progView.get(0, tk.END)
-    save_program(value)
+    save_program()
 
 
-def IfRegjumpTab():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def if_register_jump_to_tab():
+    selected_row_num = get_selected_row_num()
     regNum = regNumJmpEntryField.get()
     regEqNum = regEqJmpEntryField.get()
     tabNum = regTabJmpEntryField.get()
-    tabjmp = "If Register " + regNum + " = " + regEqNum + " Jump to Tab " + tabNum
-    tab1.progView.insert(selRow, tabjmp)
-    value = tab1.progView.get(0, tk.END)
+    row = f"If Register {regNum} = {regEqNum} Jump to Tab {tabNum}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
-def insertRegister():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def insert_register_command():
+    selected_row_num = get_selected_row_num()
     regNum = regNumEntryField.get()
     regCmd = regEqEntryField.get()
-    regIns = "Register " + regNum + " = " + regCmd
-    tab1.progView.insert(selRow, regIns)
-    value = tab1.progView.get(0, tk.END)
+    row = f"Register {regNum} = {regCmd}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
-def storPos():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except:
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
+def store_position():
+    selected_row_num = get_selected_row_num()
     regNum = storPosNumEntryField.get()
     regElmnt = storPosElEntryField.get()
     regCmd = storPosValEntryField.get()
-    regIns = "Store Position " + regNum + " Element " + regElmnt + " = " + regCmd
-    tab1.progView.insert(selRow, regIns)
-    value = tab1.progView.get(0, tk.END)
+    row = f"Store Position {regNum} Element {regElmnt} = {regCmd}"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
-    save_program(value)
+    save_program()
 
 
-def insCalibrate():
-    try:
-        selRow = tab1.progView.curselection()[0]
-        selRow += 1
-    except Exception as e:
-        print(e)
-        last = tab1.progView.index('end')
-        selRow = last
-        tab1.progView.select_set(selRow)
-    insCal = "Calibrate Robot"
-    tab1.progView.insert(selRow, insCal)
-    value = tab1.progView.get(0, tk.END)
+def insert_calibration_command():
+    selected_row_num = get_selected_row_num()
+    row = "Calibrate Robot"
+    tab1.progView.insert(selected_row_num, row)
     tab1.progView.selection_clear(0, tk.END)
-    tab1.progView.select_set(selRow)
-    save_program(value)
+    tab1.progView.select_set(selected_row_num)
     tabNumEntryField.delete(0, 'end')
+    save_program()
 
 
 def change_selected_row_num(event):
-    selected_row = tab1.progView.curselection()
-    if selected_row:
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
         curRowEntryField.delete(0, 'end')
-        curRowEntryField.insert(0, selected_row[0])
+        curRowEntryField.insert(0, selected_rows[0])
 
 
-def getSel():
-    selRow = tab1.progView.curselection()[0]
-    tab1.progView.see(selRow + 2)
-    data = list(map(int, tab1.progView.curselection()))
-    command = tab1.progView.get(data[0])
-    manEntryField.delete(0, 'end')
-    manEntryField.insert(0, command)
+def get_selected_row():
+    selected_rows = tab1.progView.curselection()
+    if selected_rows:
+        selected_row_num = tab1.progView.curselection()[0]
+
+        tab1.progView.see(selected_row_num + 2)
+        command = tab1.progView.get(selected_row_num)
+        manEntryField.delete(0, 'end')
+        manEntryField.insert(0, command)
+    else:
+        logger.info("Any rows aren't selected.")
 
 
-def Servo0on():
+def servo_0_on():
     save_position_data()
     servoPos = servo0onEntryField.get()
-    command = "SV0P" + servoPos + "\n"
+    command = f"SV0P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo0off():
+def servo_0_off():
     save_position_data()
     servoPos = servo0offEntryField.get()
-    command = "SV0P" + servoPos + "\n"
+    command = f"SV0P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo1on():
+def servo_1_on():
     save_position_data()
     servoPos = servo1onEntryField.get()
-    command = "SV1P" + servoPos + "\n"
+    command = f"SV1P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo1off():
+def servo_1_off():
     save_position_data()
     servoPos = servo1offEntryField.get()
-    command = "SV1P" + servoPos + "\n"
+    command = f"SV1P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo2on():
+def servo_2_on():
     save_position_data()
     servoPos = servo2onEntryField.get()
-    command = "SV2P" + servoPos + "\n"
+    command = f"SV2P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo2off():
+def servo_2_off():
     save_position_data()
     servoPos = servo2offEntryField.get()
-    command = "SV2P" + servoPos + "\n"
+    command = f"SV2P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def Servo3on():
+def servo_3_on():
     save_position_data()
     servoPos = servo3onEntryField.get()
-    command = "SV3P" + servoPos + "\n"
+    command = f"SV3P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_teensy.read()
 
 
-def Servo3off():
+def servo_3_off():
     save_position_data()
     servoPos = servo3offEntryField.get()
-    command = "SV3P" + servoPos + "\n"
+    command = f"SV3P{servoPos}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_teensy.read()
 
 
-def DO1on():
+def do_1_on():
     outputNum = DO1onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO1off():
+def do_1_off():
     outputNum = DO1offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO2on():
+def do_2_on():
     outputNum = DO2onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO2off():
+def do_2_off():
     outputNum = DO2offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO3on():
+def do_3_on():
     outputNum = DO3onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO3off():
+def do_3_off():
     outputNum = DO3offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO4on():
+def do_4_on():
     outputNum = DO4onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO4off():
+def do_4_off():
     outputNum = DO4offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO5on():
+def do_5_on():
     outputNum = DO5onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO5off():
+def do_5_off():
     outputNum = DO5offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO6on():
+def do_6_on():
     outputNum = DO6onEntryField.get()
-    command = "ONX" + outputNum + "\n"
+    command = f"ONX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
     serial_arduino.read()
 
 
-def DO6off():
+def do_6_off():
     outputNum = DO6offEntryField.get()
-    command = "OFX" + outputNum + "\n"
+    command = f"OFX{outputNum}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(.2)
@@ -3323,7 +3260,7 @@ def DO6off():
 
 def send_test_string():
     message = testSendEntryField.get()
-    command = "TM" + message + "\n"
+    command = f"TM{message}\n"
     serial_arduino.write(command.encode())
     serial_arduino.flushInput()
     time.sleep(0)
@@ -3350,7 +3287,7 @@ def calculate_linear_distance(X2, Y2, Z2):
     return linear_distance
 
 
-def CalcLinVect(X2, Y2, Z2):
+def calculate_linear_vector(X2, Y2, Z2):
     global XcurPos
     global YcurPos
     global ZcurPos
@@ -3366,13 +3303,7 @@ def CalcLinVect(X2, Y2, Z2):
     return Xv, Yv, Zv
 
 
-def CalcLinWayPt(CX, CY, CZ, curWayPt, ):
-    global XcurPos
-    global YcurPos
-    global ZcurPos
-
-
-### KINEMATIC DEFS ######################################################################################################################## KINEMATIC DEFS ###
+# KINEMATIC DEF
 def calculate_direct_kinematics_problem():
     global XcurPos
     global YcurPos
@@ -3399,19 +3330,19 @@ def calculate_direct_kinematics_problem():
         J5AngCur = .0001
     if J6AngCur == 0:
         J6AngCur = .0001
-        ## Set Wrist Config
+    # Set Wrist Config
     if J5AngCur > 0:
         WC = "F"
     else:
         WC = "N"
-    ## CONVERT TO RADIANS
+    # CONVERT TO RADIANS
     C4 = math.radians(float(J1AngCur) + DHt1)
     C5 = math.radians(float(J2AngCur) + DHt2)
     C6 = math.radians(float(J3AngCur) + DHt3)
     C7 = math.radians(float(J4AngCur) + DHt4)
     C8 = math.radians(float(J5AngCur) + DHt5)
     C9 = math.radians(float(J6AngCur) + DHt6)
-    ## DH TABLE
+    # DH TABLE
     C13 = C4
     C14 = C5
     C15 = C6
@@ -3436,21 +3367,21 @@ def calculate_direct_kinematics_problem():
     F16 = DHa4
     F17 = DHa5
     F18 = DHa6
-    ## WORK FRAME INPUT
+    # WORK FRAME INPUT
     H13 = float(UFxEntryField.get())
     H14 = float(UFyEntryField.get())
     H15 = float(UFzEntryField.get())
     H16 = float(UFrxEntryField.get())
     H17 = float(UFryEntryField.get())
     H18 = float(UFrzEntryField.get())
-    ## TOOL FRAME INPUT
+    # TOOL FRAME INPUT
     J13 = float(TFxEntryField.get())
     J14 = float(TFyEntryField.get())
     J15 = float(TFzEntryField.get())
     J16 = float(TFrxEntryField.get())
     J17 = float(TFryEntryField.get())
     J18 = float(TFrzEntryField.get())
-    ## WORK FRAME TABLE
+    # WORK FRAME TABLE
     B21 = math.cos(math.radians(H18)) * math.cos(math.radians(H17))
     B22 = math.sin(math.radians(H18)) * math.cos(math.radians(H17))
     B23 = -math.sin(math.radians(H18))
@@ -3471,7 +3402,7 @@ def calculate_direct_kinematics_problem():
     E22 = H14
     E23 = H15
     E24 = 1
-    ## J1 FRAME
+    # J1 FRAME
     B27 = math.cos(C13)
     B28 = math.sin(C13)
     B29 = 0
@@ -3488,7 +3419,7 @@ def calculate_direct_kinematics_problem():
     E28 = F13 * math.sin(C13)
     E29 = E13
     E30 = 1
-    ## J2 FRAME
+    # J2 FRAME
     B33 = math.cos(C14)
     B34 = math.sin(C14)
     B35 = 0
@@ -3505,7 +3436,7 @@ def calculate_direct_kinematics_problem():
     E34 = F14 * math.sin(C14)
     E35 = E14
     E36 = 1
-    ## J3 FRAME
+    # J3 FRAME
     B39 = math.cos(C15)
     B40 = math.sin(C15)
     B41 = 0
@@ -3522,7 +3453,7 @@ def calculate_direct_kinematics_problem():
     E40 = F15 * math.sin(C15)
     E41 = 0
     E42 = 1
-    ## J4 FRAME
+    # J4 FRAME
     B45 = math.cos(C16)
     B46 = math.sin(C16)
     B47 = 0
@@ -3539,7 +3470,7 @@ def calculate_direct_kinematics_problem():
     E46 = F16 * math.sin(C16)
     E47 = E16
     E48 = 1
-    ## J5 FRAME
+    # J5 FRAME
     B51 = math.cos(C17)
     B52 = math.sin(C17)
     B53 = 0
@@ -3556,7 +3487,7 @@ def calculate_direct_kinematics_problem():
     E52 = F17 * math.sin(C17)
     E53 = E17
     E54 = 1
-    ## J6 FRAME
+    # J6 FRAME
     B57 = math.cos(C18)
     B58 = math.sin(C18)
     B59 = 0
@@ -3573,7 +3504,7 @@ def calculate_direct_kinematics_problem():
     E58 = F18 * math.sin(C18)
     E59 = E18
     E60 = 1
-    ## TOOL FRAME
+    # TOOL FRAME
     B63 = math.cos(math.radians(J18)) * math.cos(math.radians(J17))
     B64 = math.sin(math.radians(J18)) * math.cos(math.radians(J17))
     B65 = -math.sin(math.radians(J18))
@@ -3594,7 +3525,7 @@ def calculate_direct_kinematics_problem():
     E64 = J14
     E65 = J15
     E66 = 1
-    ## WF*J1
+    # WF*J1
     G24 = (B21 * B27) + (C21 * B28) + (D21 * B29) + (E21 * B30)
     G25 = (B22 * B27) + (C22 * B28) + (D22 * B29) + (E22 * B30)
     G26 = (B23 * B27) + (C23 * B28) + (D23 * B29) + (E23 * B30)
@@ -3611,7 +3542,7 @@ def calculate_direct_kinematics_problem():
     J25 = (B22 * E27) + (C22 * E28) + (D22 * E29) + (E22 * E30)
     J26 = (B23 * E27) + (C23 * E28) + (D23 * E29) + (E23 * E30)
     J27 = (B24 * E27) + (C24 * E28) + (D24 * E29) + (E24 * E30)
-    ## (WF*J1)*J2
+    # (WF*J1)*J2
     G30 = (G24 * B33) + (H24 * B34) + (I24 * B35) + (J24 * B36)
     G31 = (G25 * B33) + (H25 * B34) + (I25 * B35) + (J25 * B36)
     G32 = (G26 * B33) + (H26 * B34) + (I26 * B35) + (J26 * B36)
@@ -3645,7 +3576,7 @@ def calculate_direct_kinematics_problem():
     J37 = (G31 * E39) + (H31 * E40) + (I31 * E41) + (J31 * E42)
     J38 = (G32 * E39) + (H32 * E40) + (I32 * E41) + (J32 * E42)
     J39 = (G33 * E39) + (H33 * E40) + (I33 * E41) + (J33 * E42)
-    ## (WF*J1*J2*J3)*J4
+    # (WF*J1*J2*J3)*J4
     G42 = (G36 * B45) + (H36 * B46) + (I36 * B47) + (J36 * B48)
     G43 = (G37 * B45) + (H37 * B46) + (I37 * B47) + (J37 * B48)
     G44 = (G38 * B45) + (H38 * B46) + (I38 * B47) + (J38 * B48)
@@ -3662,7 +3593,7 @@ def calculate_direct_kinematics_problem():
     J43 = (G37 * E45) + (H37 * E46) + (I37 * E47) + (J37 * E48)
     J44 = (G38 * E45) + (H38 * E46) + (I38 * E47) + (J38 * E48)
     J45 = (G39 * E45) + (H39 * E46) + (I39 * E47) + (J39 * E48)
-    ## (WF*J1*J2*J3*J4)*J5
+    # (WF*J1*J2*J3*J4)*J5
     G48 = (G42 * B51) + (H42 * B52) + (I42 * B53) + (J42 * B54)
     G49 = (G43 * B51) + (H43 * B52) + (I43 * B53) + (J43 * B54)
     G50 = (G44 * B51) + (H44 * B52) + (I44 * B53) + (J44 * B54)
@@ -3679,7 +3610,7 @@ def calculate_direct_kinematics_problem():
     J49 = (G43 * E51) + (H43 * E52) + (I43 * E53) + (J43 * E54)
     J50 = (G44 * E51) + (H44 * E52) + (I44 * E53) + (J44 * E54)
     J51 = (G45 * E51) + (H45 * E52) + (I45 * E53) + (J45 * E54)
-    ## (WF*J1*J2*J3*J4*J5)*J6
+    # (WF*J1*J2*J3*J4*J5)*J6
     G54 = (G48 * B57) + (H48 * B58) + (I48 * B59) + (J48 * B60)
     G55 = (G49 * B57) + (H49 * B58) + (I49 * B59) + (J49 * B60)
     G56 = (G50 * B57) + (H50 * B58) + (I50 * B59) + (J50 * B60)
@@ -3696,7 +3627,7 @@ def calculate_direct_kinematics_problem():
     J55 = (G49 * E57) + (H49 * E58) + (I49 * E59) + (J49 * E60)
     J56 = (G50 * E57) + (H50 * E58) + (I50 * E59) + (J50 * E60)
     J57 = (G51 * E57) + (H51 * E58) + (I51 * E59) + (J51 * E60)
-    ## (WF*J1*J2*J3*J4*J5*J6)*TF
+    # (WF*J1*J2*J3*J4*J5*J6)*TF
     G60 = (G54 * B63) + (H54 * B64) + (I54 * B65) + (J54 * B66)
     G61 = (G55 * B63) + (H55 * B64) + (I55 * B65) + (J55 * B66)
     G62 = (G56 * B63) + (H56 * B64) + (I56 * B65) + (J56 * B66)
@@ -3713,7 +3644,7 @@ def calculate_direct_kinematics_problem():
     J61 = (G55 * E63) + (H55 * E64) + (I55 * E65) + (J55 * E66)
     J62 = (G56 * E63) + (H56 * E64) + (I56 * E65) + (J56 * E66)
     J63 = (G57 * E63) + (H57 * E64) + (I57 * E65) + (J57 * E66)
-    ## GET YPR
+    # GET YPR
     I8 = math.atan2(math.sqrt((I60 ** 2) + (I61 ** 2)), -I62)
     I7 = math.atan2((G62 / I8), (H62 / I8))
     I9 = math.atan2((I60 / I8), (I61 / I8))
@@ -3816,21 +3747,21 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         F16 = DHa4
         F17 = DHa5
         F18 = DHa6
-        ## WORK FRAME INPUT
+        # WORK FRAME INPUT
         H13 = -float(UFxEntryField.get())
         H14 = -float(UFyEntryField.get())
         H15 = -float(UFzEntryField.get())
         H16 = -float(UFrxEntryField.get())
         H17 = -float(UFryEntryField.get())
         H18 = -float(UFrzEntryField.get())
-        ## TOOL FRAME INPUT
+        # TOOL FRAME INPUT
         J13 = -float(TFxEntryField.get()) + TCX
         J14 = -float(TFyEntryField.get()) + TCY
         J15 = -float(TFzEntryField.get()) + TCZ
         J16 = -float(TFrxEntryField.get()) + TCRx
         J17 = -float(TFryEntryField.get()) + TCRy
         J18 = -float(TFrzEntryField.get()) + TCRz
-        ## WORK FRAME TABLE
+        # WORK FRAME TABLE
         N30 = math.cos(math.radians(H18)) * math.cos(math.radians(H17))
         O30 = -math.sin(math.radians(H18)) * math.cos(math.radians(H16)) + math.cos(math.radians(H18)) * math.sin(
             math.radians(H17)) * math.sin(math.radians(H16))
@@ -3851,7 +3782,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         O33 = 0
         P33 = 0
         Q33 = 1
-        ## R 0-T
+        # R 0-T
         X30 = math.cos(math.radians(O7)) * math.cos(math.radians(O9)) - math.cos(math.radians(O8)) * math.sin(
             math.radians(O7)) * math.sin(math.radians(O9))
         Y30 = math.cos(math.radians(O9)) * math.sin(math.radians(O7)) + math.cos(math.radians(O7)) * math.cos(
@@ -3872,7 +3803,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y33 = 0
         Z33 = 0
         AA33 = 1
-        ## R 0-T   offset by work frame
+        # R 0-T   offset by work frame
         X36 = ((N30 * X30) + (O30 * X31) + (P30 * X32) + (Q30 * X33)) * -1
         Y36 = (N30 * Y30) + (O30 * Y31) + (P30 * Y32) + (Q30 * Y33)
         Z36 = (N30 * Z30) + (O30 * Z31) + (P30 * Z32) + (Q30 * Z33)
@@ -3889,7 +3820,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y39 = (N33 * Y30) + (O33 * Y31) + (P33 * Y32) + (Q33 * Y33)
         Z39 = (N33 * Z30) + (O33 * Z31) + (P33 * Z32) + (Q33 * Z33)
         AA39 = (N33 * AA30) + (O33 * AA31) + (P33 * AA32) + (Q33 * AA33)
-        ## TOOL FRAME
+        # TOOL FRAME
         X42 = math.cos(math.radians(J18)) * math.cos(math.radians(J17))
         Y42 = -math.sin(math.radians(J18)) * math.cos(math.radians(J16)) + math.cos(math.radians(J18)) * math.sin(
             math.radians(J17)) * math.sin(math.radians(J16))
@@ -3910,7 +3841,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y45 = 0
         Z45 = 0
         AA45 = 1
-        ## INVERT TOOL FRAME
+        # INVERT TOOL FRAME
         X48 = X42
         Y48 = X43
         Z48 = X44
@@ -3927,7 +3858,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y51 = 0
         Z51 = 0
         AA51 = 1
-        ## R 0-6
+        # R 0-6
         X54 = (X36 * X48) + (Y36 * X49) + (Z36 * X50) + (AA36 * X51)
         Y54 = (X36 * Y48) + (Y36 * Y49) + (Z36 * Y50) + (AA36 * Y51)
         Z54 = (X36 * Z48) + (Y36 * Z49) + (Z36 * Z50) + (AA36 * Z51)
@@ -3944,7 +3875,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y57 = (X39 * Y48) + (Y39 * Y49) + (Z39 * Y50) + (AA39 * Y51)
         Z57 = (X39 * Z48) + (Y39 * Z49) + (Z39 * Z50) + (AA39 * Z51)
         AA57 = (X39 * AA48) + (Y39 * AA49) + (Z39 * AA50) + (AA39 * AA51)
-        ## REMOVE R 0-6
+        # REMOVE R 0-6
         X60 = math.cos(math.radians(180))
         Y60 = math.sin(math.radians(180))
         Z60 = 0
@@ -3961,7 +3892,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         Y63 = 0
         Z63 = 0
         AA63 = 1
-        ## R 0-5 (center spherica wrist)
+        # R 0-5 (center spherica wrist)
         X66 = (X54 * X60) + (Y54 * X61) + (Z54 * X62) + (AA54 * X63)
         Y66 = (X54 * Y60) + (Y54 * Y61) + (Z54 * Y62) + (AA54 * Y63)
         Z66 = (X54 * Z60) + (Y54 * Z61) + (Z54 * Z62) + (AA54 * Z63)
@@ -4005,7 +3936,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
                 90 - O25)
         O26 = -(O21 + O22)
         O27 = O23
-        ## CALCULATE J2 ANGLE	MID
+        # CALCULATE J2 ANGLE	MID
         P18 = -O18
         P19 = math.sqrt((O17 ** 2) + (P18 ** 2))
         P21 = math.degrees(math.acos(((F14 ** 2) + (P19 ** 2) - (abs(O20) ** 2)) / (2 * F14 * P19)))
@@ -4015,7 +3946,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         P24 = 90 - (P21 + P22)
         P26 = -180 + P24
         P27 = P23
-        ## J1,J2,J3
+        # J1,J2,J3
         Q4 = P13
         if O18 < 0:
             Q5 = P26
@@ -4023,7 +3954,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         else:
             Q5 = O26
             Q6 = O27
-        ## J1
+        # J1
         N36 = math.cos(math.radians(Q4))
         O36 = -math.sin(math.radians(Q4)) * math.cos(D13)
         P36 = math.sin(math.radians(Q4)) * math.sin(D13)
@@ -4040,7 +3971,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         O39 = 0
         P39 = 0
         Q39 = 1
-        ## J2
+        # J2
         N42 = math.cos(math.radians(Q5))
         O42 = -math.sin(math.radians(Q5)) * math.cos(D14)
         P42 = math.sin(math.radians(Q5)) * math.sin(D14)
@@ -4057,7 +3988,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         O45 = 0
         P45 = 0
         Q45 = 1
-        ## J3
+        # J3
         N48 = math.cos(math.radians(Q6 - 90))
         O48 = -math.sin(math.radians(Q6 - 90)) * math.cos(D15)
         P48 = math.sin(math.radians(Q6 - 90)) * math.sin(D15)
@@ -4074,7 +4005,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         O51 = 0
         P51 = 0
         Q51 = 0
-        ## R 0-1
+        # R 0-1
         S33 = (N30 * N36) + (O30 * N37) + (P30 * N38) + (Q30 * N39)
         T33 = (N30 * O36) + (O30 * O37) + (P30 * O38) + (Q30 * O39)
         U33 = (N30 * P36) + (O30 * P37) + (P30 * P38) + (Q30 * P39)
@@ -4091,7 +4022,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         T36 = (N33 * O36) + (O33 * O37) + (P33 * O38) + (Q33 * O39)
         U36 = (N33 * P36) + (O33 * P37) + (P33 * P38) + (Q33 * P39)
         V36 = (N33 * Q36) + (O33 * Q37) + (P33 * Q38) + (Q33 * Q39)
-        ## R 0-2
+        # R 0-2
         S39 = (S33 * N42) + (T33 * N43) + (U33 * N44) + (V33 * N45)
         T39 = (S33 * O42) + (T33 * O43) + (U33 * O44) + (V33 * O45)
         U39 = (S33 * P42) + (T33 * P43) + (U33 * P44) + (V33 * P45)
@@ -4108,7 +4039,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         T42 = (S36 * O42) + (T36 * O43) + (U36 * O44) + (V36 * O45)
         U42 = (S36 * P42) + (T36 * P43) + (U36 * P44) + (V36 * P45)
         V42 = (S36 * Q42) + (T36 * Q43) + (U36 * Q44) + (V36 * Q45)
-        ## R 0-3
+        # R 0-3
         S45 = (S39 * N48) + (T39 * N49) + (U39 * N50) + (V39 * N51)
         T45 = (S39 * O48) + (T39 * O49) + (U39 * O50) + (V39 * O51)
         U45 = (S39 * P48) + (T39 * P49) + (U39 * P50) + (V39 * P51)
@@ -4125,7 +4056,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         T48 = (S42 * O48) + (T42 * O49) + (U42 * O50) + (V42 * O51)
         U48 = (S42 * P48) + (T42 * P49) + (U42 * P50) + (V42 * P51)
         V48 = (S42 * Q48) + (T42 * Q49) + (U42 * Q50) + (V42 * Q51)
-        ## R 0-3 transposed
+        # R 0-3 transposed
         S51 = S45
         T51 = S46
         U51 = S47
@@ -4135,7 +4066,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         S53 = U45
         T53 = U46
         U53 = U47
-        ## R 3-6 (spherical wrist  orietation)
+        # R 3-6 (spherical wrist  orientation)
         X72 = (S51 * X66) + (T51 * X67) + (U51 * X68)
         Y72 = (S51 * Y66) + (T51 * Y67) + (U51 * Y68)
         Z72 = (S51 * Z66) + (T51 * Z67) + (U51 * Z68)
@@ -4145,7 +4076,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         X74 = (S53 * X66) + (T53 * X67) + (U53 * X68)
         Y74 = (S53 * Y66) + (T53 * Y67) + (U53 * Y68)
         Z74 = (S53 * Z66) + (T53 * Z67) + (U53 * Z68)
-        ## WRIST ORENTATION
+        # WRIST ORIENTATION
         R7 = math.degrees(math.atan2(Z73, Z72))
         R8 = math.degrees(math.atan2(+math.sqrt(1 - Z74 ** 2), Z74))
         if Y74 < 0:
@@ -4170,7 +4101,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
             Q9 = S9
         else:
             Q9 = R9
-        ## FINAL OUTPUT
+        # FINAL OUTPUT
         J1out = Q4
         J2out = Q5
         J3out = Q6
@@ -4180,7 +4111,7 @@ def calculate_inverse_kinematics_problem(CX, CY, CZ, CRx, CRy, CRz, WC, TCX, TCY
         return J1out, J2out, J3out, J4out, J5out, J6out
 
 
-### MOVE DEFS ################################################################################################################################## MOVE DEFS ###
+# MOVE DEF
 def MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz,
             Track, Code):
     global commandCalc
@@ -4269,7 +4200,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
         write_log(value)
         tab1.runTrue = 0
     else:
-        ##J1 calc##
+        # J1 calc
         if float(J1newAng) >= float(J1AngCur):
             # calc pos dir output
             if J1motdir == "0":
@@ -4418,6 +4349,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
             J5StepCur) + "Z" + str(J6StepCur) + "\n"
         if Code == 0:
             serial_teensy.write(commandCalc.encode())
+
+            logger.debug(f"Write to teensy: {commandCalc}")
+
             serial_teensy.flushInput()
             time.sleep(.01)
             # ser.read()
@@ -4444,11 +4378,13 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
             return commandCalc
 
 
-### CALIBRATION & SAVE DEFS ###################################################################################################### CALIBRATION & SAVE DEFS ###
+# CALIBRATION & SAVE DEFS
 def get_robot_position():
-    commandCalc = "GP" + "U" + str(J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(
-        J4StepCur) + "Y" + str(J5StepCur) + "Z" + str(J6StepCur) + "\n"
-    serial_teensy.write(commandCalc.encode())
+    command = f"GPU{J1StepCur}V{J2StepCur}W{J3StepCur}X{J4StepCur}Y{J5StepCur}Z{J6StepCur}\n"
+    serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     RobotCode = str(serial_teensy.readline())
     Pcode = RobotCode[2:4]
     if Pcode == "01":
@@ -4571,7 +4507,7 @@ def apply_robot_calibration(RobotCode):
     write_log(value)
 
 
-def calRobotAll():
+def auto_calibrate():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "111110"
@@ -4604,6 +4540,9 @@ def calRobotAll():
         J6caldrive = "0"
     command = "MJA" + J1caldrive + "500" + "B" + J2caldrive + "500" + "C" + J3caldrive + "500" + "D" + J4caldrive + "500" + "E" + J5caldrive + "500" + "F" + J6caldrive + "0" + "S15G10H10I10K10" + "\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4614,6 +4553,9 @@ def calRobotAll():
     calRobot(calaxis, speed)
     command = "MJA" + J1caldrive + "0" + "B" + J2caldrive + "0" + "C" + J3caldrive + "0" + "D" + J4caldrive + "0" + "E" + J5caldrive + "0" + "F" + J6caldrive + "500" + "S15G10H10I10K10" + "\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     calaxis = "000001"
     speed = "8"
@@ -4625,19 +4567,24 @@ def calRobotAll():
     blockEncPosCal = 0
 
 
-def calRobotJ1():
+def calibrate_j1_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "100000"
     speed = "20"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J1caldir == J1motdir:
         J1caldrive = "1"
     else:
         J1caldrive = "0"
-    command = "MJA" + J1caldrive + "500" + "S15G10H10I10K10" + "\n"
+    # TODO: можно переписать условие выше в одну строку
+    # J1caldrive = "1" if J1caldir == J1motdir else "0"
+    command = f"MJA{J1caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4645,19 +4592,22 @@ def calRobotJ1():
     blockEncPosCal = 0
 
 
-def calRobotJ2():
+def calibrate_j2_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "010000"
     speed = "40"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J2caldir == J2motdir:
         J2caldrive = "1"
     else:
         J2caldrive = "0"
-    command = "MJB" + J2caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJB{J2caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4665,19 +4615,22 @@ def calRobotJ2():
     blockEncPosCal = 0
 
 
-def calRobotJ3():
+def calibrate_j3_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "001000"
     speed = "40"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J3caldir == J3motdir:
         J3caldrive = "1"
     else:
         J3caldrive = "0"
-    command = "MJC" + J3caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJC{J3caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4685,19 +4638,22 @@ def calRobotJ3():
     blockEncPosCal = 0
 
 
-def calRobotJ4():
+def calibrate_j4_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "000100"
     speed = "40"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J4caldir == J4motdir:
         J4caldrive = "1"
     else:
         J4caldrive = "0"
-    command = "MJD" + J4caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJD{J4caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4705,19 +4661,22 @@ def calRobotJ4():
     blockEncPosCal = 0
 
 
-def calRobotJ5():
+def calibrate_j5_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "000010"
     speed = "40"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J5caldir == J5motdir:
         J5caldrive = "1"
     else:
         J5caldrive = "0"
-    command = "MJE" + J5caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJE{J5caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4725,19 +4684,22 @@ def calRobotJ5():
     blockEncPosCal = 0
 
 
-def calRobotJ6():
+def calibrate_j6_only():
     global blockEncPosCal
     blockEncPosCal = 1
     calaxis = "000001"
     speed = "40"
     calRobot(calaxis, speed)
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J6caldir == J6motdir:
         J6caldrive = "1"
     else:
         J6caldrive = "0"
-    command = "MJF" + J6caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJF{J6caldrive}500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     speed = "8"
     time.sleep(2.5)
@@ -4752,7 +4714,7 @@ def calRobot(calaxis, speed):
     J4axis = calaxis[3:-2]
     J5axis = calaxis[4:-1]
     J6axis = calaxis[5:]
-    ###
+
     if J1axis == "1":
         J1step = str(J1StepLim)
     else:
@@ -4777,7 +4739,7 @@ def calRobot(calaxis, speed):
         J6step = str(J6StepLim)
     else:
         J6step = "0"
-    ### calc correct calibration direction
+    # calc correct calibration direction
     if J1caldir == J1motdir:
         J1caldrive = "0"
     else:
@@ -4805,6 +4767,9 @@ def calRobot(calaxis, speed):
     command = "LL" + "A" + J1caldrive + J1step + "B" + J2caldrive + J2step + "C" + J3caldrive + J3step + "D" + J4caldrive + J4step + "E" + J5caldrive + J5step + "F" + J6caldrive + J6step + "S" + str(
         speed) + "\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
     calvalue = serial_teensy.read()
     global calStat
@@ -4907,13 +4872,16 @@ def calRobot(calaxis, speed):
     command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
         J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
 
 
 def calRobotMid():
     calibration.delete(0, tk.END)
 
-    ##J1##
+    # J1
     global J1StepCur
     global J1AngCur
     J1StepCur = J1StepLim / 2
@@ -4921,7 +4889,7 @@ def calRobotMid():
     J1curAngEntryField.delete(0, 'end')
     J1curAngEntryField.insert(0, str(J1AngCur))
 
-    ##J2## j2 goes to -90 given axis not centered
+    # J2 j2 goes to -90 given axis not centered
     global J2StepCur
     global J2AngCur
     J2StepCur = (J2StepLim / abs(J2NegAngLim)) * (abs(J2NegAngLim) - 90)
@@ -4929,7 +4897,7 @@ def calRobotMid():
     J2curAngEntryField.delete(0, 'end')
     J2curAngEntryField.insert(0, str(J2AngCur))
 
-    ##J3##  j3 goes to 1 given axis not centered
+    # J3  j3 goes to 1 given axis not centered
     global J3StepCur
     global J3AngCur
     J3StepCur = 0
@@ -4937,7 +4905,7 @@ def calRobotMid():
     J3curAngEntryField.delete(0, 'end')
     J3curAngEntryField.insert(0, str(J3AngCur))
 
-    ##J4##
+    # J4
     global J4StepCur
     global J4AngCur
     J4StepCur = J4StepLim / 2
@@ -4945,23 +4913,23 @@ def calRobotMid():
     J4curAngEntryField.delete(0, 'end')
     J4curAngEntryField.insert(0, str(J4AngCur))
 
-    ##J5##
+    # J5
     global J5StepCur
     global J5AngCur
     J5StepCur = J5StepLim / 2
     J5AngCur = 0
     J5curAngEntryField.delete(0, 'end')
     J5curAngEntryField.insert(0, str(J5AngCur))
-    ###########
-    ##J6##
+
+    # J6
     global J6StepCur
     global J6AngCur
     J6StepCur = J6StepLim / 2
     J6AngCur = 0
     J6curAngEntryField.delete(0, 'end')
     J6curAngEntryField.insert(0, str(J6AngCur))
-    ###########
-    ##J7##
+
+    # J7
     global TrackStepLim
     global TrackcurPos
     global TrackLength
@@ -4979,9 +4947,11 @@ def calRobotMid():
     calculate_direct_kinematics_problem()
     display_steps()
     save_position_data()
-    command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
-        J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
+    command = f"LMA{J1StepCur}B{J2StepCur}C{J3StepCur}D{J4StepCur}E{J5StepCur}F{J6StepCur}\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
 
 
@@ -5197,7 +5167,7 @@ def save_and_apply_calibration():
     global J4OpenLoopVal
     global J5OpenLoopVal
     global J6OpenLoopVal
-    ###joint variables
+    # joint variables
     J1NegAngLim = float(J1NegAngLimEntryField.get())
     J1PosAngLim = float(J1PosAngLimEntryField.get())
     J1StepLim = int(J1StepLimEntryField.get())
@@ -5360,7 +5330,8 @@ def gotoFineCalPos():
 
 
 def gotoRestPos():
-    command = "Move J [*]  X) 68.944   Y) 0.0   Z) 733.607   W) -90.0   P) 1.05   R) -90.0   T) 201.5   Speed-50 Ad 15 As 10 Dd 20 Ds 5 $F"
+    command = "Move J [*]  X) 68.944   Y) 0.0   Z) 733.607   W) -90.0   P) 1.05   R) -90.0   T) 201.5" \
+              "   Speed-50 Ad 15 As 10 Dd 20 Ds 5 $F"
     J1newIndex = command.find("X) ")
     J2newIndex = command.find("Y) ")
     J3newIndex = command.find("Z) ")
@@ -5446,9 +5417,11 @@ def exeFineCalPos():
     calculate_direct_kinematics_problem()
     display_steps()
     save_position_data()
-    command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
-        J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
+    command = f"LMA{J1StepCur}B{J2StepCur}C{J3StepCur}D{J4StepCur}E{J5StepCur}F{J6StepCur}\n"
     serial_teensy.write(command.encode())
+
+    logger.debug(f"Write to teensy: {command}")
+
     serial_teensy.flushInput()
 
 
@@ -5469,7 +5442,7 @@ def monitorEnc():
         time.sleep(2)
 
 
-# VISION DEFS
+# VISION DEF
 def testvis():
     visprog = visoptions.get()
     if visprog[:] == "Openvision":
@@ -5485,7 +5458,7 @@ def openvision():
     global Ypos
     global VisEndYmm
     visfail = 1
-    while visfail == 1:
+    while visfail:
         value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -5582,9 +5555,10 @@ def xyr():
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
         while value == 0:
             try:
-                with  open(VisFileLoc, "r") as file:
+                with open(VisFileLoc, "r") as f:
                     value = file.readlines()[-1]  # .decode()
-            except:
+            except Exception as e:
+                print(e)
                 value = 0
         almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
         almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
@@ -5857,7 +5831,7 @@ manInsBut.place(x=1220, y=641)
 manRepBut = tk.Button(tab1, borderwidth=3, text="Replace", height=1, width=6, command=replace_line)
 manRepBut.place(x=1280, y=641)
 
-getSelBut = tk.Button(tab1, borderwidth=3, text="Get Selected", height=1, width=10, command=getSel)
+getSelBut = tk.Button(tab1, borderwidth=3, text="Get Selected", height=1, width=10, command=get_selected_row)
 getSelBut.place(x=540, y=641)
 
 options = tk.StringVar(tab1)
@@ -5890,10 +5864,10 @@ setOutputOnBut.place(x=700, y=480)
 setOutputOffBut = tk.Button(tab1, borderwidth=3, text="Set Output OFF", height=1, width=20, command=set_output_off)
 setOutputOffBut.place(x=700, y=520)
 
-tabNumBut = tk.Button(tab1, borderwidth=3, text="Create Tab", height=1, width=14, command=tabNumber)
+tabNumBut = tk.Button(tab1, borderwidth=3, text="Create Tab", height=1, width=14, command=tab_num)
 tabNumBut.place(x=1240, y=360)
 
-jumpTabBut = tk.Button(tab1, borderwidth=3, text="Jump to Tab", height=1, width=14, command=jumpTab)
+jumpTabBut = tk.Button(tab1, borderwidth=3, text="Jump to Tab", height=1, width=14, command=jump_to_tab)
 jumpTabBut.place(x=1240, y=400)
 
 getVisBut = tk.Button(tab1, borderwidth=3, text="Get Vision", height=1, width=14, command=get_vision)
@@ -5957,13 +5931,13 @@ fwdBut.place(x=100, y=80)
 revBut = tk.Button(tab1, borderwidth=3, text="REV", height=3, width=4, command=step_back)
 revBut.place(x=150, y=80)
 
-RegNumBut = tk.Button(tab1, borderwidth=3, text="Register", height=1, width=20, command=insertRegister)
+RegNumBut = tk.Button(tab1, borderwidth=3, text="Register", height=1, width=20, command=insert_register_command)
 RegNumBut.place(x=920, y=480)
 
-RegJmpBut = tk.Button(tab1, borderwidth=3, text="If Register Jump", height=1, width=20, command=IfRegjumpTab)
+RegJmpBut = tk.Button(tab1, borderwidth=3, text="If Register Jump", height=1, width=20, command=if_register_jump_to_tab)
 RegJmpBut.place(x=920, y=520)
 
-CalibrateBut = tk.Button(tab1, borderwidth=3, text="Auto Calibrate CMD", height=1, width=20, command=insCalibrate)
+CalibrateBut = tk.Button(tab1, borderwidth=3, text="Auto Calibrate CMD", height=1, width=20, command=insert_calibration_command)
 CalibrateBut.place(x=700, y=600)
 
 J1jogNegBut = tk.Button(tab1, borderwidth=3, text="-", height=1, width=3, command=J1jogNeg)
@@ -6087,7 +6061,7 @@ CheckRobotPosbut = tk.Button(tab1, borderwidth=3, text="Check Robot Position", h
                              command=get_robot_position)
 CheckRobotPosbut.place(x=1230, y=45)
 
-StorPosBut = tk.Button(tab1, borderwidth=3, text="Stored Position", height=1, width=20, command=storPos)
+StorPosBut = tk.Button(tab1, borderwidth=3, text="Stored Position", height=1, width=20, command=store_position)
 StorPosBut.place(x=920, y=560)
 
 ####ENTRY FIELDS##########################################################
@@ -6444,7 +6418,7 @@ MotDirLab.place(x=70, y=420)
 
 ### 2 BUTTONS################################################################
 
-manCalBut = tk.Button(tab2, bg="lightskyblue3", text="Auto Calibrate", height=1, width=20, command=calRobotAll)
+manCalBut = tk.Button(tab2, bg="lightskyblue3", text="Auto Calibrate", height=1, width=20, command=auto_calibrate)
 manCalBut.place(x=10, y=60)
 
 ForcCalBut = tk.Button(tab2, bg="lightskyblue3", text="Calibrate @ Rest Position", height=1, width=26,
@@ -6466,22 +6440,22 @@ saveCalBut = tk.Button(tab2, borderwidth=3, text="SAVE CALIBRATION DATA", height
                        command=save_and_apply_calibration)
 saveCalBut.place(x=1150, y=630)
 
-CalJ1But = tk.Button(tab2, borderwidth=3, text="Calibrate J1 Only", height=1, width=20, command=calRobotJ1)
+CalJ1But = tk.Button(tab2, borderwidth=3, text="Calibrate J1 Only", height=1, width=20, command=calibrate_j1_only)
 CalJ1But.place(x=10, y=190)
 
-CalJ2But = tk.Button(tab2, borderwidth=3, text="Calibrate J2 Only", height=1, width=20, command=calRobotJ2)
+CalJ2But = tk.Button(tab2, borderwidth=3, text="Calibrate J2 Only", height=1, width=20, command=calibrate_j2_only)
 CalJ2But.place(x=10, y=220)
 
-CalJ3But = tk.Button(tab2, borderwidth=3, text="Calibrate J3 Only", height=1, width=20, command=calRobotJ3)
+CalJ3But = tk.Button(tab2, borderwidth=3, text="Calibrate J3 Only", height=1, width=20, command=calibrate_j3_only)
 CalJ3But.place(x=10, y=250)
 
-CalJ4But = tk.Button(tab2, borderwidth=3, text="Calibrate J4 Only", height=1, width=20, command=calRobotJ4)
+CalJ4But = tk.Button(tab2, borderwidth=3, text="Calibrate J4 Only", height=1, width=20, command=calibrate_j4_only)
 CalJ4But.place(x=10, y=280)
 
-CalJ5But = tk.Button(tab2, borderwidth=3, text="Calibrate J5 Only", height=1, width=20, command=calRobotJ5)
+CalJ5But = tk.Button(tab2, borderwidth=3, text="Calibrate J5 Only", height=1, width=20, command=calibrate_j5_only)
 CalJ5But.place(x=10, y=310)
 
-CalJ5But = tk.Button(tab2, borderwidth=3, text="Calibrate J6 Only", height=1, width=20, command=calRobotJ6)
+CalJ5But = tk.Button(tab2, borderwidth=3, text="Calibrate J6 Only", height=1, width=20, command=calibrate_j6_only)
 CalJ5But.place(x=10, y=340)
 
 CalTrackBut = tk.Button(tab2, borderwidth=3, text="Calibrate Track to 0", height=1, width=20, command=CalTrackPos)
@@ -6754,64 +6728,64 @@ inoutavailLab = tk.Label(tab3,
 inoutavailLab.place(x=10, y=645)
 
 # 3 BUTTONS
-servo0onBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=Servo0on)
+servo0onBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=servo_0_on)
 servo0onBut.place(x=10, y=10)
 
-servo0offBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=Servo0off)
+servo0offBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=servo_0_off)
 servo0offBut.place(x=10, y=50)
 
-servo1onBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=Servo1on)
+servo1onBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=servo_1_on)
 servo1onBut.place(x=10, y=90)
 
-servo1offBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=Servo1off)
+servo1offBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=servo_1_off)
 servo1offBut.place(x=10, y=130)
 
-servo2onBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=Servo2on)
+servo2onBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=servo_2_on)
 servo2onBut.place(x=10, y=170)
 
-servo2offBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=Servo2off)
+servo2offBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=servo_2_off)
 servo2offBut.place(x=10, y=210)
 
-servo3onBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=Servo3on)
+servo3onBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=servo_3_on)
 servo3onBut.place(x=10, y=250)
 
-servo3offBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=Servo3off)
+servo3offBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=servo_3_off)
 servo3offBut.place(x=10, y=290)
 
-DO1onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO1on)
+DO1onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_1_on)
 DO1onBut.place(x=150, y=10)
 
-DO1offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO1off)
+DO1offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_1_off)
 DO1offBut.place(x=150, y=50)
 
-DO2onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO2on)
+DO2onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_2_on)
 DO2onBut.place(x=150, y=90)
 
-DO2offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO2off)
+DO2offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_2_off)
 DO2offBut.place(x=150, y=130)
 
-DO3onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO3on)
+DO3onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_3_on)
 DO3onBut.place(x=150, y=170)
 
-DO3offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO3off)
+DO3offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_3_off)
 DO3offBut.place(x=150, y=210)
 
-DO4onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO4on)
+DO4onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_4_on)
 DO4onBut.place(x=150, y=250)
 
-DO4offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO4off)
+DO4offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_4_off)
 DO4offBut.place(x=150, y=290)
 
-DO5onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO5on)
+DO5onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_5_on)
 DO5onBut.place(x=150, y=330)
 
-DO5offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO5off)
+DO5offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_5_off)
 DO5offBut.place(x=150, y=370)
 
-DO6onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=DO6on)
+DO6onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_6_on)
 DO6onBut.place(x=150, y=410)
 
-DO6offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=DO6off)
+DO6offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_6_off)
 DO6offBut.place(x=150, y=450)
 
 #### 3 ENTRY FIELDS##########################################################
@@ -7376,8 +7350,7 @@ VisXpixfoundLab.place(x=760, y=100)
 VisYpixfoundLab = tk.Label(tab5, text="Y pixes returned from camera")
 VisYpixfoundLab.place(x=760, y=130)
 
-### 5 BUTTONS################################################################
-#############################################################################
+# 5 BUTTONS
 
 visoptions = tk.StringVar(tab5)
 menu = tk.OptionMenu(tab5, visoptions, "Openvision", "Roborealm 1.7.5", "x,y,r")
@@ -7391,7 +7364,7 @@ saveCalBut = tk.Button(tab5, borderwidth=3, text="SAVE VISION DATA", height=1, w
                        command=save_and_apply_calibration)
 saveCalBut.place(x=1150, y=630)
 
-#### 5 ENTRY FIELDS##########################################################
+# 5 ENTRY FIELDS
 
 VisFileLocEntryField = tk.Entry(tab5, width=70)
 VisFileLocEntryField.place(x=125, y=12)
@@ -7444,7 +7417,7 @@ scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 tab6.ElogView = tk.Listbox(error_log_frame, width=150, height=40, yscrollcommand=scrollbar.set)
 
 try:
-    with open("ErrorLog", "rb") as f:
+    with open("program_files/error.log", "rb") as f:
         error_log = pickle.load(f)
 except FileNotFoundError:
     error_log = ['##BEGINNING OF LOG##']
@@ -7494,26 +7467,22 @@ configfile.pack(side="left")
 scroll.config(command=configfile.yview)
 configfile.place(x=10, y=40)
 
-####TAB 10
-
-### 10 LABELS#################################################################
-
+# TAB 10
+# 10 LABELS
 testSendLab = tk.Label(tab10, text="Test string to send to arduino")
 testSendLab.place(x=10, y=20)
 
 testRecLab = tk.Label(tab10, text="Message echoed back from arduino")
 testRecLab.place(x=10, y=70)
 
-### 10 BUTTONS################################################################
-
+# 10 BUTTONS
 testSendBut = tk.Button(tab10, borderwidth=3, text="SEND TO ARDUINO", height=1, width=20, command=send_test_string)
 testSendBut.place(x=10, y=120)
 
 testClearBut = tk.Button(tab10, borderwidth=3, text="CLEAR RECEIVED", height=1, width=20, command=clear_test_string)
 testClearBut.place(x=180, y=120)
 
-#### 10 ENTRY FIELDS##########################################################
-
+# 10 ENTRY FIELDS
 testSendEntryField = tk.Entry(tab10, width=222)
 testSendEntryField.place(x=10, y=40)
 
