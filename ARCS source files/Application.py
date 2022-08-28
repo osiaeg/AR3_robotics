@@ -285,9 +285,7 @@ class Application(tk.Tk):
         self.resizable(False, False)
 
         self.tabs = self._create_tabs()
-        self.jog_steps_status = tk.IntVar()
         self.draw_tab_1(self.tabs[0])
-        self.current_steps = [12, 14, 300, 234, 34, 324]
 
     def _calculate_geometry(self) -> str:
         screen_width = self.winfo_screenwidth()
@@ -324,6 +322,8 @@ class Application(tk.Tk):
         #   записывать их в нужные Label
 
     def draw_tab_1(self, tab1=None):
+        self.jog_steps_status = tk.IntVar()
+        self.current_steps = [12, 14, 300, 234, 34, 324]
         self.status_label = tk.Label(tab1, text="SYSTEM READY - NO ACTIVE ALARMS",
                                      bg="cornflowerblue").place(x=10, y=10)
         self.program_status_label = tk.Label(tab1, text="PROGRAM STOPPED", bg="red").place(x=20, y=150)
@@ -449,15 +449,15 @@ class Application(tk.Tk):
 
         tk.Button(tab1, borderwidth=3, text="Delete", height=1, width=20, command=delete_line).place(x=540, y=520)
 
-        runProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=run_program)
-        playPhoto = tk.PhotoImage(file="img/play-icon.gif")
-        runProgBut.config(image=playPhoto, width="60", height="60")
-        runProgBut.place(x=20, y=80)
+        run_program_button = tk.Button(tab1, borderwidth=3, height=60, width=60, command=run_program)
+        self.play_photo = tk.PhotoImage(file="img/play-icon.gif")
+        run_program_button.config(image=self.play_photo, width="60", height="60")
+        run_program_button.place(x=20, y=80)
 
-        stopProgBut = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stop_program)
-        stopPhoto = tk.PhotoImage(file="img/stop-icon.gif")
-        stopProgBut.config(image=stopPhoto, width="60", height="60")
-        stopProgBut.place(x=200, y=80)
+        stop_program_button = tk.Button(tab1, borderwidth=3, height=60, width=60, command=stop_program)
+        self.stop_photo = tk.PhotoImage(file="img/stop-icon.gif")
+        stop_program_button.config(image=self.stop_photo, width="60", height="60")
+        stop_program_button.place(x=200, y=80)
 
         tk.Button(tab1, borderwidth=3, text="FWD", height=3, width=4, command=step_forward).place(x=100, y=80)
         tk.Button(tab1, borderwidth=3, text="REV", height=3, width=4, command=step_back).place(x=150, y=80)
@@ -698,6 +698,21 @@ class Application(tk.Tk):
 
         track_jog_entry_field = tk.Entry(tab1, width=5)
         track_jog_entry_field.place(x=1230, y=185)
+
+        program_frame = ttk.Frame(tab1)
+        program_frame.place(x=7, y=174)
+        program_view_scrollbar = tk.Scrollbar(program_frame)
+        program_view_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.program_view = tk.Listbox(program_frame, width=84, height=31, yscrollcommand=program_view_scrollbar.set)
+        self.program_view.pack()
+        self.program_view.bind('<<ListboxSelect>>', self.change_selected_row_num)
+
+    def change_selected_row_num(self, event):
+        selection = event.widget.curselection()
+        if selection:
+            index = selection[0]
+            self.current_row_entry.delete(0, 'end')
+            self.current_row_entry.insert(0, index)
 
 
 def main():
