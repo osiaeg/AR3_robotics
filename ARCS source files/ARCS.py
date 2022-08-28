@@ -37,7 +37,7 @@ from loguru import logger
         * you must give appropriate credit and indicate if changes were made. You may do
           so in any reasonable manner, but not in any way that suggests the
           licensor endorses you or your use.
-		* Selling robots, robot parts, or any versions of robots or software based on this work is strictly prohibited.
+        * Selling robots, robot parts, or any versions of robots or software based on this work is strictly prohibited.
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
     ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -54,6 +54,12 @@ from loguru import logger
 ''' 
     ### VERSION DOC ##########################################################
 '''
+
+
+def main():
+    pass
+
+
 baud = 115200
 
 root = tk.Tk()
@@ -69,27 +75,9 @@ x_offset = int(screen_width / 2) - int(app_width / 2)
 y_offset = int(screen_height / 2) - int(app_height / 2)
 root.geometry(f'{app_width}x{app_height}+{x_offset}+{y_offset}')
 
-root.runTrue = 0
-
-# global JogStepsStat
-JogStepsStat: IntVar = tk.IntVar()
-# global J1OpenLoopStat
-J1OpenLoopStat: IntVar = tk.IntVar()
-# global J2OpenLoopStat
-J2OpenLoopStat: IntVar = tk.IntVar()
-# global J3OpenLoopStat
-J3OpenLoopStat: IntVar = tk.IntVar()
-# global J4OpenLoopStat
-J4OpenLoopStat: IntVar = tk.IntVar()
-# global J5OpenLoopStat
-J5OpenLoopStat: IntVar = tk.IntVar()
-# global J6OpenLoopStat
-J6OpenLoopStat: IntVar = tk.IntVar()
-
-global xboxUse
-
 # DEFINE TABS
 nb = ttk.Notebook(root, width=app_width, height=app_height)
+tabs_name = []
 
 tab1 = ttk.Frame(nb)
 tab2 = ttk.Frame(nb)
@@ -111,14 +99,39 @@ nb.add(tab10, text='Testing')
 
 nb.pack(pady=5, padx=5)
 
+root.runTrue = 0
+
+# global JogStepsStat
+JogStepsStat: IntVar = tk.IntVar()
+# global J1OpenLoopStat
+J1OpenLoopStat: IntVar = tk.IntVar()
+# global J2OpenLoopStat
+J2OpenLoopStat: IntVar = tk.IntVar()
+# global J3OpenLoopStat
+J3OpenLoopStat: IntVar = tk.IntVar()
+# global J4OpenLoopStat
+J4OpenLoopStat: IntVar = tk.IntVar()
+# global J5OpenLoopStat
+J5OpenLoopStat: IntVar = tk.IntVar()
+# global J6OpenLoopStat
+J6OpenLoopStat: IntVar = tk.IntVar()
+
+global xboxUse
+
 
 def get_current_time() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
 
 
-def write_log(error_data) -> None:
+def write_log() -> None:
+    error_data = tab6.ElogView.get(0, tk.END)
     with open("./program_files/error.log", "wb") as f:
         pickle.dump(error_data, f)
+
+
+def clear_log():
+    tab6.ElogView.delete(1, tk.END)
+    write_log()
 
 
 def write_calibration_data(cal_data) -> None:
@@ -134,7 +147,7 @@ def save_program() -> None:
     logger.debug(f"File {file_name} is saved.")
 
 
-def get_selected_row_num():
+def get_selected_row_num() -> int:
     selected_rows = tab1.progView.curselection()
     if selected_rows:
         selected_row_num = selected_rows[0] + 1
@@ -144,7 +157,12 @@ def get_selected_row_num():
     return selected_row_num
 
 
-# COMMUNICATION_DEFS
+def change_status(status: str, color: str):
+    almStatusLab.config(text=status, bg=color)
+    almStatusLab2.config(text=status, bg=color)
+
+
+# COMMUNICATION_DEF
 def set_teensy_port() -> None:
     try:
         global serial_teensy
@@ -156,18 +174,14 @@ def set_teensy_port() -> None:
         global J6StepCur
         port = f"COM{comPortEntryField.get()}"
         serial_teensy = serial.Serial(port, baud)
-        almStatusLab.config(text="SYSTEM READY", bg='cornflowerblue')
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status(status="SYSTEM READY", color='cornflowerblue')
         tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH TEENSY 3.5")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         save_position_data()
     except serial.SerialException:
-        almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
-        almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", bg="yellow")
+        change_status(status="UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5", color='yellow')
         tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH TEENSY 3.5")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         save_position_data()
 
 
@@ -182,18 +196,14 @@ def set_arduino_port():
         global J6StepCur
         port = f"COM{com2PortEntryField.get()}"
         serial_arduino = serial.Serial(port, baud)
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         tab6.ElogView.insert(tk.END, get_current_time() + " - COMMUNICATIONS STARTED WITH MEGA 2560")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         save_position_data()
     except serial.SerialException:
-        almStatusLab.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
-        almStatusLab2.config(text="UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", bg="yellow")
+        change_status("UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560", "yellow")
         tab6.ElogView.insert(tk.END, get_current_time() + " - UNABLE TO ESTABLISH COMMUNICATIONS WITH MEGA 2560")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         save_position_data()
 
 
@@ -235,7 +245,8 @@ def run_program():
                 selRow = tab1.progView.curselection()[0]
                 curRowEntryField.delete(0, 'end')
                 curRowEntryField.insert(0, selRow)
-            except:
+            except Exception as e:
+                print(e)
                 curRowEntryField.delete(0, 'end')
                 curRowEntryField.insert(0, "---")
                 tab1.runTrue = 0
@@ -742,7 +753,7 @@ def exec_row():
         Rystart = RycurPos
         Rzstart = RzcurPos
 
-        ## SPEEDS
+        # SPEEDS
         # ACCpts = numWayPts * (int(ACCdur)/100)
         # ACCpctInc = 100 / int(ACCpts)
         # numDECpts = (numWayPts * (int(DECdur)/100))
@@ -804,8 +815,7 @@ def exec_row():
     if cmdType == "Move A":
         sub_cmd = command[:10]
         if sub_cmd == "Move A Mid" or sub_cmd == "Move A End":
-            almStatusLab.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
-            almStatusLab2.config(text="Move A must start with a Beg followed by Mid & End", bg="red")
+            change_status("Move A must start with a Beg followed by Mid & End", "red")
         J1newIndex = command.find("X) ")
         J2newIndex = command.find("Y) ")
         J3newIndex = command.find("Z) ")
@@ -995,8 +1005,7 @@ def exec_row():
         blockEncPosCal = 1
         sub_cmd = command[:10]
         if sub_cmd == "Move C Sta" or sub_cmd == "Move C Pla":
-            almStatusLab.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
-            almStatusLab2.config(text="Move C must start with a Center followed by Start & Plane", bg="red")
+            change_status("Move C must start with a Center followed by Start & Plane", "red")
         J1newIndex = command.find("X) ")
         J2newIndex = command.find("Y) ")
         J3newIndex = command.find("Z) ")
@@ -1194,8 +1203,7 @@ def J1jogNeg():
     global J1AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1231,12 +1239,9 @@ def J1jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
+        change_status("J1 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1251,8 +1256,7 @@ def J1jogPos():
     global J1AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1293,12 +1297,9 @@ def J1jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
+        change_status("J1 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1313,8 +1314,7 @@ def J2jogNeg():
     global J2AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1350,12 +1350,9 @@ def J2jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
+        change_status("J2 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1370,8 +1367,7 @@ def J2jogPos():
     global J2AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1412,12 +1408,9 @@ def J2jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
+        change_status("J2 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1432,8 +1425,7 @@ def J3jogNeg():
     global J3AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1469,12 +1461,10 @@ def J3jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
+        change_status("J3 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
 
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1489,8 +1479,7 @@ def J3jogPos():
     global J3AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1531,12 +1520,9 @@ def J3jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
+        change_status("J3 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1551,8 +1537,7 @@ def J4jogNeg():
     global J4AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1588,12 +1573,9 @@ def J4jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
+        change_status("J4 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1608,8 +1590,7 @@ def J4jogPos():
     global J4AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1650,12 +1631,9 @@ def J4jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
+        change_status("J4 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1670,8 +1648,7 @@ def J5jogNeg():
     global J5AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1707,12 +1684,9 @@ def J5jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
+        change_status("J5 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1727,8 +1701,7 @@ def J5jogPos():
     global J5AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1769,12 +1742,9 @@ def J5jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
+        change_status("J5 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1789,8 +1759,7 @@ def J6jogNeg():
     global J6AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1826,12 +1795,9 @@ def J6jogNeg():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
+        change_status("J6 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
@@ -1846,8 +1812,7 @@ def J6jogPos():
     global J6AngCur
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
     ACCspd = ACCspeedField.get()
@@ -1888,20 +1853,16 @@ def J6jogPos():
         if Pcode == "01":
             apply_robot_calibration(RobotCode)
     else:
-        almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
+        change_status("J6 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
-
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
     display_steps()
 
 
 def XjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos - float(XjogEntryField.get())
     CY = YcurPos
     CZ = ZcurPos
@@ -1928,8 +1889,7 @@ def XjogNeg():
 def YjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos - float(YjogEntryField.get())
     CZ = ZcurPos
@@ -1956,8 +1916,7 @@ def YjogNeg():
 def ZjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos - float(ZjogEntryField.get())
@@ -1984,8 +1943,7 @@ def ZjogNeg():
 def RxjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2012,8 +1970,7 @@ def RxjogNeg():
 def RyjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2040,8 +1997,7 @@ def RyjogNeg():
 def RzjogNeg():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2068,8 +2024,7 @@ def RzjogNeg():
 def XjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos + float(XjogEntryField.get())
     CY = YcurPos
     CZ = ZcurPos
@@ -2096,8 +2051,7 @@ def XjogPos():
 def YjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos + float(YjogEntryField.get())
     CZ = ZcurPos
@@ -2124,8 +2078,7 @@ def YjogPos():
 def ZjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos + float(ZjogEntryField.get())
@@ -2152,8 +2105,7 @@ def ZjogPos():
 def RxjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2180,8 +2132,7 @@ def RxjogPos():
 def RyjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2208,8 +2159,7 @@ def RyjogPos():
 def RzjogPos():
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2238,8 +2188,7 @@ def TrackjogNeg():
     global TrackLength
     global TrackStepLim
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CT = float(TrackjogEntryField.get())
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
@@ -2264,11 +2213,9 @@ def TrackjogNeg():
         TrackcurEntryField.insert(0, str(TrackcurPos))
         save_position_data()
     else:
-        almStatusLab.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
-        almStatusLab2.config(text="TRACK NEG TRAVEL LIMIT", bg="red")
+        change_status("TRACK NEG TRAVEL LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "TRACK NEG TRAVEL LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
 
 
 def TrackjogPos():
@@ -2276,8 +2223,7 @@ def TrackjogPos():
     global TrackLength
     global TrackStepLim
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     CT = float(TrackjogEntryField.get())
     Speed = speedEntryField.get()
     ACCdur = ACCdurField.get()
@@ -2302,16 +2248,13 @@ def TrackjogPos():
         TrackcurEntryField.insert(0, str(TrackcurPos))
         save_position_data()
     else:
-        almStatusLab.config(text="TRACK POS TRAVEL LIMIT", bg="red")
-        almStatusLab2.config(text="TRACK POS TRAVEL LIMIT", bg="red")
+        change_status("TRACK POS TRAVEL LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "TRACK POS TRAVEL LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
 
 
 def TXjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2336,8 +2279,7 @@ def TXjogNeg():
 
 
 def TYjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2362,8 +2304,7 @@ def TYjogNeg():
 
 
 def TZjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2388,8 +2329,7 @@ def TZjogNeg():
 
 
 def TRxjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2414,8 +2354,7 @@ def TRxjogNeg():
 
 
 def TRyjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2440,8 +2379,7 @@ def TRyjogNeg():
 
 
 def TRzjogNeg():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2466,8 +2404,7 @@ def TRzjogNeg():
 
 
 def TXjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2492,8 +2429,7 @@ def TXjogPos():
 
 
 def TYjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2518,8 +2454,7 @@ def TYjogPos():
 
 
 def TZjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2544,8 +2479,7 @@ def TZjogPos():
 
 
 def TRxjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2570,8 +2504,7 @@ def TRxjogPos():
 
 
 def TRyjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2596,8 +2529,7 @@ def TRyjogPos():
 
 
 def TRzjogPos():
-    almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-    almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+    change_status("SYSTEM READY", "cornflowerblue")
     CX = XcurPos
     CY = YcurPos
     CZ = ZcurPos
@@ -2786,18 +2718,16 @@ def teachFineCal():
     J5AngWrite = str(round(RycurPos, 3))
     J6AngWrite = str(round(RzcurPos, 3))
     TrackPosWrite = str(round(TrackcurPos, 3))
-    row = f"Move J [*]  X){J1AngWrite}  Y){J2AngWrite}  Z){J3AngWrite}  W){J4AngWrite} P){J5AngWrite} R){J6AngWrite} T){TrackPosWrite} Speed-{Speed} Ad-{ACCdur} As-{ACCspd} Dd-{DECdur} Ds-{DECspd} ${WC} "
+    row = f"Move J [*]  X){J1AngWrite}  Y){J2AngWrite}  Z){J3AngWrite}  W){J4AngWrite} P){J5AngWrite} R){J6AngWrite}" \
+          f" T){TrackPosWrite} Speed-{Speed} Ad-{ACCdur} As-{ACCspd} Dd-{DECdur} Ds-{DECspd} ${WC} "
     # newPos = "Move J [*]  X) " + J1AngWrite + "   Y) " + J2AngWrite + "   Z) " + J3AngWrite + "   W) " + J4AngWrite + "   P) " + J5AngWrite + "   R) " + J6AngWrite + "   T) " + TrackPosWrite + "   Speed-" + Speed + " Ad " + ACCdur + " As " + ACCspd + " Dd " + DECdur + " Ds " + DECspd + " $" + WC
     fineCalEntryField.delete(0, 'end')
     # fineCalEntryField.insert(0, str(newPos))
     fineCalEntryField.insert(0, row)
     save_position_data()
-    almStatusLab.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
-    almStatusLab2.config(text="NEW FINE CALIBRATION POSITION TAUGHT", bg="blue")
+    change_status("NEW FINE CALIBRATION POSITION TAUGHT", "blue")
     tab6.ElogView.insert(tk.END, get_current_time() + " - " + "NEW FINE CALIBRATION POSITION TAUGHT")
-
-    value = tab6.ElogView.get(0, tk.END)
-    write_log(value)
+    write_log()
 
 
 # PROGRAM_FUNCTION_DEF
@@ -4127,8 +4057,7 @@ def MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd,
 def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, DECdur, DECspd, Track, Code):
     global xboxUse
     if xboxUse != 1:
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
     global J1AngCur
     global J2AngCur
     global J3AngCur
@@ -4152,52 +4081,40 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
     J5newAng = J5out
     J6newAng = J6out
     TrackNew = Track
-    ###CHECK WITHIN ANGLE LIMITS
+    # CHECK WITHIN ANGLE LIMITS
     # if (J1newAng < J1NegAngLim or J1newAng > J1PosAngLim) or (J2newAng < J2NegAngLim or J2newAng > J2PosAngLim) or (J3newAng < J3NegAngLim or J3newAng > J3PosAngLim) or (J4newAng < J4NegAngLim or J4newAng > J4PosAngLim) or (J5newAng < J5NegAngLim or J5newAng > J5PosAngLim) or (J6newAng < J6NegAngLim or J6newAng > J6PosAngLim or TrackNew < 0 or TrackNew > TrackLength):
     # almStatusLab.config(text="AXIS LIMIT", bg = "red")
     # almStatusLab2.config(text="AXIS LIMIT", bg = "red")
     # tab1.runTrue = 0
     if J1newAng < J1NegAngLim or J1newAng > J1PosAngLim:
-        almStatusLab.config(text="J1 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J1 AXIS LIMIT", bg="red")
+        change_status("J1 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     elif J2newAng < J2NegAngLim or J2newAng > J2PosAngLim:
-        almStatusLab.config(text="J2 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J2 AXIS LIMIT", bg="red")
+        change_status("J2 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     elif J3newAng < J3NegAngLim or J3newAng > J3PosAngLim:
-        almStatusLab.config(text="J3 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J3 AXIS LIMIT", bg="red")
+        change_status("J3 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     elif J4newAng < J4NegAngLim or J4newAng > J4PosAngLim:
-        almStatusLab.config(text="J4 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J4 AXIS LIMIT", bg="red")
+        change_status("J4 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     elif J5newAng < J5NegAngLim or J5newAng > J5PosAngLim:
-        almStatusLab.config(text="J5 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J5 AXIS LIMIT", bg="red")
+        change_status("J5 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     elif J6newAng < J6NegAngLim or J6newAng > J6PosAngLim:
-        almStatusLab.config(text="J6 AXIS LIMIT", bg="red")
-        almStatusLab2.config(text="J6 AXIS LIMIT", bg="red")
+        change_status("J6 AXIS LIMIT", "red")
         tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 AXIS LIMIT")
-        value = tab6.ElogView.get(0, tk.END)
-        write_log(value)
+        write_log()
         tab1.runTrue = 0
     else:
         # J1 calc
@@ -4222,7 +4139,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J1StepCur = J1StepCur - J1steps  # Invert
                 J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
             J1steps = str(J1steps)
-            ##J2 calc##
+        # J2 calc
         if float(J2newAng) >= float(J2AngCur):
             # calc pos dir output
             if J2motdir == "0":
@@ -4244,7 +4161,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J2StepCur = J2StepCur - J2steps  # Invert
                 J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
             J2steps = str(J2steps)
-            ##J3 calc##
+        # J3 calc
         if float(J3newAng) >= float(J3AngCur):
             # calc pos dir output
             if J3motdir == "0":
@@ -4266,7 +4183,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J3StepCur = J3StepCur - J3steps  # Invert
                 J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
             J3steps = str(J3steps)
-            ##J4 calc##
+        # J4 calc
         if float(J4newAng) >= float(J4AngCur):
             # calc pos dir output
             if J4motdir == "0":
@@ -4288,7 +4205,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J4StepCur = J4StepCur - J4steps  # Invert
                 J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
             J4steps = str(J4steps)
-            ##J5 calc##
+        # J5 calc
         if float(J5newAng) >= float(J5AngCur):
             # calc pos dir output
             if J5motdir == "0":
@@ -4310,7 +4227,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J5StepCur = J5StepCur - J5steps  # Invert
                 J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
             J5steps = str(J5steps)
-            ##J6 calc##
+        # J6 calc
         if float(J6newAng) >= float(J6AngCur):
             # calc pos dir output
             if J6motdir == "0":
@@ -4332,7 +4249,7 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
                 J6StepCur = J6StepCur - J6steps  # Invert
                 J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
             J6steps = str(J6steps)
-        ##Track calc##
+        # Track calc
         if TrackNew >= TrackcurPos:
             TRdir = "1"
             TRdist = TrackNew - TrackcurPos
@@ -4344,9 +4261,9 @@ def MoveNew(J1out, J2out, J3out, J4out, J5out, J6out, newSpeed, ACCdur, ACCspd, 
         TrackcurPos = TrackNew
         TrackcurEntryField.delete(0, 'end')
         TrackcurEntryField.insert(0, str(TrackcurPos))
-        commandCalc = "MJA" + J1dir + J1steps + "B" + J2dir + J2steps + "C" + J3dir + J3steps + "D" + J4dir + J4steps + "E" + J5dir + J5steps + "F" + J6dir + J6steps + "T" + TRdir + TRstep + "S" + newSpeed + "G" + ACCdur + "H" + ACCspd + "I" + DECdur + "K" + DECspd + "U" + str(
-            J1StepCur) + "V" + str(J2StepCur) + "W" + str(J3StepCur) + "X" + str(J4StepCur) + "Y" + str(
-            J5StepCur) + "Z" + str(J6StepCur) + "\n"
+        commandCalc = f"MJA{J1dir}{J1steps}B{J2dir}{J2steps}C{J3dir}{J3steps}D{J4dir}{J4steps}E{J5dir}{J5steps}" \
+                      f"F{J6dir}{J6steps}T{TRdir}{TRstep}S{newSpeed}G{ACCdur}H{ACCspd}I{DECdur}K{DECspd}U{J1StepCur}" \
+                      f"V{J2StepCur}W{J3StepCur}X{J4StepCur}Y{J5StepCur}Z{J6StepCur}\n"
         if Code == 0:
             serial_teensy.write(commandCalc.encode())
 
@@ -4442,8 +4359,7 @@ def apply_robot_calibration(RobotCode):
     J6index = RobotCode.find('F')
     if J1OpenLoopStat.get() == 0:
         if J1fault == "1":
-            almStatusLab.config(text="J1 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J1 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J1 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J1 COLLISION OR OUT OF CALIBRATION")
             J1StepCur = int(RobotCode[J1index + 1:J2index])
             J1AngCur = round(J1NegAngLim + (J1StepCur * J1DegPerStep), 2)
@@ -4452,8 +4368,7 @@ def apply_robot_calibration(RobotCode):
             stop_program()
     if J2OpenLoopStat.get() == 0:
         if J2fault == "1":
-            almStatusLab.config(text="J2 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J2 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J2 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J2 COLLISION OR OUT OF CALIBRATION")
             J2StepCur = int(RobotCode[J2index + 1:J3index])
             J2AngCur = round(J2NegAngLim + (J2StepCur * J2DegPerStep), 2)
@@ -4462,8 +4377,7 @@ def apply_robot_calibration(RobotCode):
             stop_program()
     if J3OpenLoopStat.get() == 0:
         if J3fault == "1":
-            almStatusLab.config(text="J3 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J3 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J3 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J3 COLLISION OR OUT OF CALIBRATION")
             J3StepCur = int(RobotCode[J3index + 1:J4index])
             J3AngCur = round(J3NegAngLim + (J3StepCur * J3DegPerStep), 2)
@@ -4472,8 +4386,7 @@ def apply_robot_calibration(RobotCode):
             stop_program()
     if J4OpenLoopStat.get() == 0:
         if J4fault == "1":
-            almStatusLab.config(text="J4 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J4 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J4 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J4 COLLISION OR OUT OF CALIBRATION")
             J4StepCur = int(RobotCode[J4index + 1:J5index])
             J4AngCur = round(J4NegAngLim + (J4StepCur * J4DegPerStep), 2)
@@ -4482,8 +4395,7 @@ def apply_robot_calibration(RobotCode):
             stop_program()
     if J5OpenLoopStat.get() == 0:
         if J5fault == "1":
-            almStatusLab.config(text="J5 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J5 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J5 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J5 COLLISION OR OUT OF CALIBRATION")
             J5StepCur = int(RobotCode[J5index + 1:J6index])
             J5AngCur = round(J5NegAngLim + (J5StepCur * J5DegPerStep), 2)
@@ -4492,8 +4404,7 @@ def apply_robot_calibration(RobotCode):
             stop_program()
     if J6OpenLoopStat.get() == 0:
         if J6fault == "1":
-            almStatusLab.config(text="J6 COLLISION OR OUT OF CALIBRATION", bg="red")
-            almStatusLab2.config(text="J6 COLLISION OR OUT OF CALIBRATION", bg="red")
+            change_status("J6 COLLISION OR OUT OF CALIBRATION", "red")
             tab6.ElogView.insert(tk.END, get_current_time() + " - " + "J6 COLLISION OR OUT OF CALIBRATION")
             J6StepCur = int(RobotCode[J6index + 1:-5])
             J6AngCur = round(J6NegAngLim + (J6StepCur * J6DegPerStep), 2)
@@ -4503,8 +4414,7 @@ def apply_robot_calibration(RobotCode):
     calculate_direct_kinematics_problem()
     display_steps()
     save_position_data()
-    value = tab6.ElogView.get(0, tk.END)
-    write_log(value)
+    write_log()
 
 
 def auto_calibrate():
@@ -4538,7 +4448,8 @@ def auto_calibrate():
         J6caldrive = "1"
     else:
         J6caldrive = "0"
-    command = "MJA" + J1caldrive + "500" + "B" + J2caldrive + "500" + "C" + J3caldrive + "500" + "D" + J4caldrive + "500" + "E" + J5caldrive + "500" + "F" + J6caldrive + "0" + "S15G10H10I10K10" + "\n"
+    command = f"MJA{J1caldrive}500B{J2caldrive}500C{J3caldrive}500D{J4caldrive}500E{J5caldrive}500F{J6caldrive}" \
+              f"0S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
 
     logger.debug(f"Write to teensy: {command}")
@@ -4551,7 +4462,8 @@ def auto_calibrate():
     calaxis = "000001"
     speed = "50"
     calRobot(calaxis, speed)
-    command = "MJA" + J1caldrive + "0" + "B" + J2caldrive + "0" + "C" + J3caldrive + "0" + "D" + J4caldrive + "0" + "E" + J5caldrive + "0" + "F" + J6caldrive + "500" + "S15G10H10I10K10" + "\n"
+    command = f"MJA{J1caldrive}0B{J2caldrive}0C{J3caldrive}0D{J4caldrive}0E{J5caldrive}0F{J6caldrive}" \
+              f"500S15G10H10I10K10\n"
     serial_teensy.write(command.encode())
 
     logger.debug(f"Write to teensy: {command}")
@@ -4562,8 +4474,7 @@ def auto_calibrate():
     time.sleep(1)
     calRobot(calaxis, speed)
     gotoRestPos()
-    almStatusLab.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
-    almStatusLab2.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
+    change_status('CALIBRATION SUCCESSFUL', "cornflowerblue")
     blockEncPosCal = 0
 
 
@@ -4764,8 +4675,11 @@ def calRobot(calaxis, speed):
         J6caldrive = "0"
     else:
         J6caldrive = "1"
-    command = "LL" + "A" + J1caldrive + J1step + "B" + J2caldrive + J2step + "C" + J3caldrive + J3step + "D" + J4caldrive + J4step + "E" + J5caldrive + J5step + "F" + J6caldrive + J6step + "S" + str(
-        speed) + "\n"
+    command = f"LLA{J1caldrive}{J1step}B{J2caldrive}{J2step}C{J3caldrive}{J3step}D{J4caldrive}{J4step}" \
+              f"E{J5caldrive}{J5step}F{J6caldrive}{J6step}S{speed}\n"
+    # command = "LL" + "A" + J1caldrive + J1step + "B" + J2caldrive + J2step + "C" + J3caldrive + J3step + "D" +
+    # J4caldrive + J4step + "E" + J5caldrive + J5step + "F" + J6caldrive + J6step + "S" + str(
+    #     speed) + "\n"
     serial_teensy.write(command.encode())
 
     logger.debug(f"Write to teensy: {command}")
@@ -4776,7 +4690,7 @@ def calRobot(calaxis, speed):
     if calvalue == b'P':
         calStat = 1
         calibration.delete(0, tk.END)
-        ##J1##
+        # J1
         global J1StepCur
         global J1AngCur
         if J1axis == "1":
@@ -4788,8 +4702,7 @@ def calRobot(calaxis, speed):
                 J1AngCur = J1PosAngLim
             J1curAngEntryField.delete(0, 'end')
             J1curAngEntryField.insert(0, str(J1AngCur))
-        ###########
-        ##J2##
+        # J2
         global J2StepCur
         global J2AngCur
         if J2axis == "1":
@@ -4801,8 +4714,7 @@ def calRobot(calaxis, speed):
                 J2AngCur = J2PosAngLim
             J2curAngEntryField.delete(0, 'end')
             J2curAngEntryField.insert(0, str(J2AngCur))
-        ###########
-        ##J3##
+        # J3
         global J3StepCur
         global J3AngCur
         if J3axis == "1":
@@ -4814,8 +4726,7 @@ def calRobot(calaxis, speed):
                 J3AngCur = J3PosAngLim
             J3curAngEntryField.delete(0, 'end')
             J3curAngEntryField.insert(0, str(J3AngCur))
-        ###########
-        ##J4##
+        # J4
         global J4StepCur
         global J4AngCur
         if J4axis == "1":
@@ -4827,8 +4738,7 @@ def calRobot(calaxis, speed):
                 J4AngCur = J4PosAngLim
             J4curAngEntryField.delete(0, 'end')
             J4curAngEntryField.insert(0, str(J4AngCur))
-        ###########
-        ##J5##
+        # J5
         global J5StepCur
         global J5AngCur
         if J5axis == "1":
@@ -4840,8 +4750,7 @@ def calRobot(calaxis, speed):
                 J5AngCur = J5PosAngLim
             J5curAngEntryField.delete(0, 'end')
             J5curAngEntryField.insert(0, str(J5AngCur))
-        ###########
-        ##J6##
+        # J6
         global J6StepCur
         global J6AngCur
         if J6axis == "1":
@@ -4856,21 +4765,17 @@ def calRobot(calaxis, speed):
         ###########
         value = calibration.get(0, tk.END)
         write_calibration_data(value)
-        almStatusLab.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
-        almStatusLab2.config(text='CALIBRATION SUCCESSFUL', bg="cornflowerblue")
+        change_status('CALIBRATION SUCCESSFUL', "cornflowerblue")
         display_steps()
     else:
         if calvalue == b'F':
             calStat = 0
-            almStatusLab.config(text="CALIBRATION FAILED", bg="red")
-            almStatusLab2.config(text="CALIBRATION FAILED", bg="red")
+            change_status("CALIBRATION FAILED", "red")
         else:
-            almStatusLab.config(text="NO CAL FEEDBACK FROM ARDUINO", bg="red")
-            almStatusLab2.config(text="NO CAL FEEDBACK FROM ARDUINO", bg="red")
+            change_status("NO CAL FEEDBACK FROM ARDUINO", "red")
     calculate_direct_kinematics_problem()
     save_position_data()
-    command = "LM" + "A" + str(J1StepCur) + "B" + str(J2StepCur) + "C" + str(J3StepCur) + "D" + str(
-        J4StepCur) + "E" + str(J5StepCur) + "F" + str(J6StepCur) + "\n"
+    command = f"LMA{J1StepCur}B{J2StepCur}C{J3StepCur}D{J4StepCur}E{J5StepCur}F{J6StepCur}\n"
     serial_teensy.write(command.encode())
 
     logger.debug(f"Write to teensy: {command}")
@@ -4941,8 +4846,7 @@ def calRobotMid():
     value = calibration.get(0, tk.END)
     write_calibration_data(value)
 
-    almStatusLab.config(text="CALIBRATED TO REST POSITION", bg="orange")
-    almStatusLab2.config(text="CALIBRATED TO REST POSITION", bg="orange")
+    change_status("CALIBRATED TO REST POSITION", "orange")
     tab6.ElogView.insert(tk.END, get_current_time() + " - " + "CALIBRATED TO REST POSITION")
     calculate_direct_kinematics_problem()
     display_steps()
@@ -5192,7 +5096,8 @@ def save_and_apply_calibration():
     J6PosAngLim = float(J6PosAngLimEntryField.get())
     J6StepLim = int(J6StepLimEntryField.get())
     J6DegPerStep = float((J6PosAngLim - J6NegAngLim) / float(J6StepLim))
-    ####AXIS LIMITS LABELS GREEN######
+
+    # AXIS LIMITS LABELS GREEN
     AxLimCol = "OliveDrab4"
     J1PlimLab = tk.Label(tab1, font=("Arial", 8), fg=AxLimCol, text="+" + str(int(J1PosAngLim)))
     J1PlimLab.place(x=685, y=10)
@@ -5325,8 +5230,7 @@ def gotoFineCalPos():
     Code = 0
     MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz,
             Track, Code)
-    almStatusLab.config(text="MOVED TO FINE CALIBRATION POSITION", bg="yellow")
-    almStatusLab2.config(text="MOVED TO FINE CALIBRATION POSITION", bg="yellow")
+    change_status("MOVED TO FINE CALIBRATION POSITION", "yellow")
 
 
 def gotoRestPos():
@@ -5412,8 +5316,7 @@ def exeFineCalPos():
     Code = 1
     MoveXYZ(CX, CY, CZ, CRx, CRy, CRz, newSpeed, ACCdur, ACCspd, DECdur, DECspd, WC, TCX, TCY, TCZ, TCRx, TCRy, TCRz,
             Track, Code)
-    almStatusLab.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
-    almStatusLab2.config(text="CALIBRATED TO FINE CALIBRATE POSITION", bg="orange")
+    change_status("CALIBRATED TO FINE CALIBRATE POSITION", "orange")
     calculate_direct_kinematics_problem()
     display_steps()
     save_position_data()
@@ -5460,8 +5363,7 @@ def openvision():
     visfail = 1
     while visfail:
         value = 0
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         while value == 0:
             try:
                 with open(VisFileLoc, "r") as f:
@@ -5469,8 +5371,7 @@ def openvision():
             except Exception as e:
                 print(e)
                 value = 0
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         x = int(value[110:122])
         y = int(value[130:142])
         viscalc(x, y)
@@ -5505,8 +5406,7 @@ def roborealm175():
     visfail = 1
     while visfail == 1:
         value = 0
-        almStatusLab.config(text="WAITING FOR CAMERA", bg="yellow")
-        almStatusLab2.config(text="WAITING FOR CAMERA", bg="yellow")
+        change_status("WAITING FOR CAMERA", "yellow")
         while value == 0:
             try:
                 with open(VisFileLoc, "r") as f:
@@ -5514,8 +5414,7 @@ def roborealm175():
             except Exception as e:
                 print(e)
                 value = 0
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         Index = value.find(",")
         x = float(value[:Index])
         y = float(value[Index + 1:])
@@ -5551,17 +5450,15 @@ def xyr():
     visfail = 1
     while visfail == 1:
         value = 0
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         while value == 0:
             try:
                 with open(VisFileLoc, "r") as f:
-                    value = file.readlines()[-1]  # .decode()
+                    value = f.readlines()[-1]  # .decode()
             except Exception as e:
                 print(e)
                 value = 0
-        almStatusLab.config(text="SYSTEM READY", bg="cornflowerblue")
-        almStatusLab2.config(text="SYSTEM READY", bg="cornflowerblue")
+        change_status("SYSTEM READY", "cornflowerblue")
         Index = value.find(",")
         x = float(value[:Index])
         value2 = value[Index + 1:]
@@ -5688,7 +5585,7 @@ J5Lab.place(x=1020, y=5)
 J6Lab = tk.Label(tab1, font=("Arial", 18), text="J6")
 J6Lab.place(x=1110, y=5)
 
-####STEPS LABELS BLUE######
+# STEPS LABELS BLUE
 stepCol = "SteelBlue4"
 
 StepsLab = tk.Label(tab1, font=("Arial", 8), fg=stepCol, text="/step")
@@ -5937,7 +5834,8 @@ RegNumBut.place(x=920, y=480)
 RegJmpBut = tk.Button(tab1, borderwidth=3, text="If Register Jump", height=1, width=20, command=if_register_jump_to_tab)
 RegJmpBut.place(x=920, y=520)
 
-CalibrateBut = tk.Button(tab1, borderwidth=3, text="Auto Calibrate CMD", height=1, width=20, command=insert_calibration_command)
+CalibrateBut = tk.Button(tab1, borderwidth=3, text="Auto Calibrate CMD", height=1, width=20,
+                         command=insert_calibration_command)
 CalibrateBut.place(x=700, y=600)
 
 J1jogNegBut = tk.Button(tab1, borderwidth=3, text="-", height=1, width=3, command=J1jogNeg)
@@ -6064,10 +5962,7 @@ CheckRobotPosbut.place(x=1230, y=45)
 StorPosBut = tk.Button(tab1, borderwidth=3, text="Stored Position", height=1, width=20, command=store_position)
 StorPosBut.place(x=920, y=560)
 
-####ENTRY FIELDS##########################################################
-##########################################################################
-
-
+# ENTRY FIELDS
 curRowEntryField = tk.Entry(tab1, width=5)
 curRowEntryField.place(x=310, y=150)
 
@@ -6167,104 +6062,91 @@ storPosElEntryField.place(x=1132, y=563)
 storPosValEntryField = tk.Entry(tab1, width=5)
 storPosValEntryField.place(x=1184, y=563)
 
-### J1 ###
-
+# J1
 J1curAngEntryField = tk.Entry(tab1, width=5)
 J1curAngEntryField.place(x=660, y=40)
 
 J1jogDegsEntryField = tk.Entry(tab1, width=5)
 J1jogDegsEntryField.place(x=660, y=65)
 
-### J2 ###
-
+# J2
 J2curAngEntryField = tk.Entry(tab1, width=5)
 J2curAngEntryField.place(x=750, y=40)
 
 J2jogDegsEntryField = tk.Entry(tab1, width=5)
 J2jogDegsEntryField.place(x=750, y=65)
 
-### J3 ###
-
+# J3
 J3curAngEntryField = tk.Entry(tab1, width=5)
 J3curAngEntryField.place(x=840, y=40)
 
 J3jogDegsEntryField = tk.Entry(tab1, width=5)
 J3jogDegsEntryField.place(x=840, y=65)
 
-### J4 ###
-
+# J4
 J4curAngEntryField = tk.Entry(tab1, width=5)
 J4curAngEntryField.place(x=930, y=40)
 
 J4jogDegsEntryField = tk.Entry(tab1, width=5)
 J4jogDegsEntryField.place(x=930, y=65)
 
-### J5 ###
-
+# J5
 J5curAngEntryField = tk.Entry(tab1, width=5)
 J5curAngEntryField.place(x=1020, y=40)
 
 J5jogDegsEntryField = tk.Entry(tab1, width=5)
 J5jogDegsEntryField.place(x=1020, y=65)
 
-### J6 ###
-
+# J6
 J6curAngEntryField = tk.Entry(tab1, width=5)
 J6curAngEntryField.place(x=1110, y=40)
 
 J6jogDegsEntryField = tk.Entry(tab1, width=5)
 J6jogDegsEntryField.place(x=1110, y=65)
 
-### X ###
-
+# X
 XcurEntryField = tk.Entry(tab1, width=5)
 XcurEntryField.place(x=660, y=160)
 
 XjogEntryField = tk.Entry(tab1, width=5)
 XjogEntryField.place(x=660, y=185)
 
-### Y ###
-
+# Y
 YcurEntryField = tk.Entry(tab1, width=5)
 YcurEntryField.place(x=750, y=160)
 
 YjogEntryField = tk.Entry(tab1, width=5)
 YjogEntryField.place(x=750, y=185)
 
-### Z ###
-
+# Z
 ZcurEntryField = tk.Entry(tab1, width=5)
 ZcurEntryField.place(x=840, y=160)
 
 ZjogEntryField = tk.Entry(tab1, width=5)
 ZjogEntryField.place(x=840, y=185)
 
-### Rx ###
-
+# Rx
 RxcurEntryField = tk.Entry(tab1, width=5)
 RxcurEntryField.place(x=930, y=160)
 
 RxjogEntryField = tk.Entry(tab1, width=5)
 RxjogEntryField.place(x=930, y=185)
 
-### Ry ###
-
+# Ry
 RycurEntryField = tk.Entry(tab1, width=5)
 RycurEntryField.place(x=1020, y=160)
 
 RyjogEntryField = tk.Entry(tab1, width=5)
 RyjogEntryField.place(x=1020, y=185)
 
-### Rz ###
-
+# Rz
 RzcurEntryField = tk.Entry(tab1, width=5)
 RzcurEntryField.place(x=1110, y=160)
 
 RzjogEntryField = tk.Entry(tab1, width=5)
 RzjogEntryField.place(x=1110, y=185)
 
-### Track ###
-
+# Track
 TrackcurEntryField = tk.Entry(tab1, width=5)
 TrackcurEntryField.place(x=1230, y=160)
 
@@ -6416,8 +6298,7 @@ CalDirLab.place(x=70, y=390)
 MotDirLab = tk.Label(tab2, text="Motor Direction Output (default = 000000)")
 MotDirLab.place(x=70, y=420)
 
-### 2 BUTTONS################################################################
-
+# 2 BUTTONS
 manCalBut = tk.Button(tab2, bg="lightskyblue3", text="Auto Calibrate", height=1, width=20, command=auto_calibrate)
 manCalBut.place(x=10, y=60)
 
@@ -6479,11 +6360,8 @@ J5OpenLoopCbut.place(x=5, y=540)
 J6OpenLoopCbut = tk.Checkbutton(tab2, text="J6 Open Loop (disable encoder)", variable=J6OpenLoopStat)
 J6OpenLoopCbut.place(x=5, y=560)
 
-#### 2 ENTRY FIELDS##########################################################
-#############################################################################
-
-### User Frame ###
-
+# 2 ENTRY FIELDS
+# User Frame
 UFxEntryField = tk.Entry(tab2, width=5)
 UFxEntryField.place(x=1080, y=40)
 UFyEntryField = tk.Entry(tab2, width=5)
@@ -6497,8 +6375,7 @@ UFryEntryField.place(x=1240, y=40)
 UFrzEntryField = tk.Entry(tab2, width=5)
 UFrzEntryField.place(x=1280, y=40)
 
-### Tool Frame ###
-
+# Tool Frame
 TFxEntryField = tk.Entry(tab2, width=5)
 TFxEntryField.place(x=1080, y=65)
 TFyEntryField = tk.Entry(tab2, width=5)
@@ -6728,68 +6605,67 @@ inoutavailLab = tk.Label(tab3,
 inoutavailLab.place(x=10, y=645)
 
 # 3 BUTTONS
-servo0onBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=servo_0_on)
+servo0onBut = tk.Button(tab3, bg="light blue", text="Servo0 on", height=1, width=8, command=servo_0_on)
 servo0onBut.place(x=10, y=10)
 
-servo0offBut = tk.Button(tab3, bg="light blue", text="Servo 0", height=1, width=6, command=servo_0_off)
+servo0offBut = tk.Button(tab3, bg="light blue", text="Servo0 off", height=1, width=8, command=servo_0_off)
 servo0offBut.place(x=10, y=50)
 
-servo1onBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=servo_1_on)
+servo1onBut = tk.Button(tab3, bg="light blue", text="Servo1 on", height=1, width=8, command=servo_1_on)
 servo1onBut.place(x=10, y=90)
 
-servo1offBut = tk.Button(tab3, bg="light blue", text="Servo 1", height=1, width=6, command=servo_1_off)
+servo1offBut = tk.Button(tab3, bg="light blue", text="Servo1 off", height=1, width=8, command=servo_1_off)
 servo1offBut.place(x=10, y=130)
 
-servo2onBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=servo_2_on)
+servo2onBut = tk.Button(tab3, bg="light blue", text="Servo2 on", height=1, width=8, command=servo_2_on)
 servo2onBut.place(x=10, y=170)
 
-servo2offBut = tk.Button(tab3, bg="light blue", text="Servo 2", height=1, width=6, command=servo_2_off)
+servo2offBut = tk.Button(tab3, bg="light blue", text="Servo2 off", height=1, width=8, command=servo_2_off)
 servo2offBut.place(x=10, y=210)
 
-servo3onBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=servo_3_on)
+servo3onBut = tk.Button(tab3, bg="light blue", text="Servo3 on", height=1, width=8, command=servo_3_on)
 servo3onBut.place(x=10, y=250)
 
-servo3offBut = tk.Button(tab3, bg="light blue", text="Servo 3", height=1, width=6, command=servo_3_off)
+servo3offBut = tk.Button(tab3, bg="light blue", text="Servo3 off", height=1, width=8, command=servo_3_off)
 servo3offBut.place(x=10, y=290)
 
-DO1onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_1_on)
+DO1onBut = tk.Button(tab3, bg="light blue", text="DO_1 on", height=1, width=6, command=do_1_on)
 DO1onBut.place(x=150, y=10)
 
-DO1offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_1_off)
+DO1offBut = tk.Button(tab3, bg="light blue", text="DO_1 off", height=1, width=6, command=do_1_off)
 DO1offBut.place(x=150, y=50)
 
-DO2onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_2_on)
+DO2onBut = tk.Button(tab3, bg="light blue", text="DO_2 on", height=1, width=6, command=do_2_on)
 DO2onBut.place(x=150, y=90)
 
-DO2offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_2_off)
+DO2offBut = tk.Button(tab3, bg="light blue", text="DO_2 off", height=1, width=6, command=do_2_off)
 DO2offBut.place(x=150, y=130)
 
-DO3onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_3_on)
+DO3onBut = tk.Button(tab3, bg="light blue", text="DO_3 on", height=1, width=6, command=do_3_on)
 DO3onBut.place(x=150, y=170)
 
-DO3offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_3_off)
+DO3offBut = tk.Button(tab3, bg="light blue", text="DO_3 off", height=1, width=6, command=do_3_off)
 DO3offBut.place(x=150, y=210)
 
-DO4onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_4_on)
+DO4onBut = tk.Button(tab3, bg="light blue", text="DO_4 on", height=1, width=6, command=do_4_on)
 DO4onBut.place(x=150, y=250)
 
-DO4offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_4_off)
+DO4offBut = tk.Button(tab3, bg="light blue", text="DO_4 off", height=1, width=6, command=do_4_off)
 DO4offBut.place(x=150, y=290)
 
-DO5onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_5_on)
+DO5onBut = tk.Button(tab3, bg="light blue", text="DO_5 on", height=1, width=6, command=do_5_on)
 DO5onBut.place(x=150, y=330)
 
-DO5offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_5_off)
+DO5offBut = tk.Button(tab3, bg="light blue", text="DO_5 off", height=1, width=6, command=do_5_off)
 DO5offBut.place(x=150, y=370)
 
-DO6onBut = tk.Button(tab3, bg="light blue", text="DO on", height=1, width=6, command=do_6_on)
+DO6onBut = tk.Button(tab3, bg="light blue", text="DO_6 on", height=1, width=6, command=do_6_on)
 DO6onBut.place(x=150, y=410)
 
-DO6offBut = tk.Button(tab3, bg="light blue", text="DO off", height=1, width=6, command=do_6_off)
+DO6offBut = tk.Button(tab3, bg="light blue", text="DO_6 off", height=1, width=6, command=do_6_off)
 DO6offBut.place(x=150, y=450)
 
-#### 3 ENTRY FIELDS##########################################################
-
+# 3 ENTRY FIELDS
 servo0onEntryField = tk.Entry(tab3, width=5)
 servo0onEntryField.place(x=90, y=15)
 
@@ -7421,7 +7297,8 @@ try:
         error_log = pickle.load(f)
 except FileNotFoundError:
     error_log = ['##BEGINNING OF LOG##']
-    write_log(error_log)
+    with open("./program_files/error.log", "wb") as f:
+        pickle.dump(error_log, f)
 
 time.sleep(.2)
 
@@ -7432,17 +7309,10 @@ tab6.ElogView.pack()
 scrollbar.config(command=tab6.ElogView.yview)
 
 
-def clear_log():
-    tab6.ElogView.delete(1, tk.END)
-    value = tab6.ElogView.get(0, tk.END)
-    write_log(value)
-
-
 clearLogBut = tk.Button(tab6, borderwidth=3, text="Clear Log", height=1, width=26, command=clear_log)
 clearLogBut.place(x=1000, y=630)
 
 # TAB 7
-
 link = tk.Label(tab7, font='12', text="https://www.anninrobotics.com/tutorials", fg="blue", cursor="hand2")
 link.bind("<Button-1>", lambda event: webbrowser.open(link.cget("text")))
 link.place(x=10, y=9)
@@ -7606,7 +7476,6 @@ J5OpenLoopVal = calibration.get("97")
 J6OpenLoopVal = calibration.get("98")
 
 ####
-
 J1curAngEntryField.insert(0, str(J1AngCur))
 J2curAngEntryField.insert(0, str(J2AngCur))
 J3curAngEntryField.insert(0, str(J3AngCur))
@@ -7851,6 +7720,7 @@ set_teensy_port()
 set_arduino_port()
 
 load_program()
+
 msg = "ANNIN ROBOTICS SOFTWARE AND MODELS ARE FREE:\n\
 \n\
 *for personal use.\n\
@@ -7884,3 +7754,6 @@ root.mainloop()
 
 # manEntryField.delete(0, 'end')
 # manEntryField.insert(0,value)
+
+if __name__ == "__main__":
+   main()
